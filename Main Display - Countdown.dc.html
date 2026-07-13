@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./dc-net.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+  html,body{height:100%;margin:0;background:#d9cba8;overflow:hidden}
+  a{color:#6a3b28}a:hover{color:#8a3324}
+</style>
+</helmet>
+<div style="position:relative;width:100vw;height:100vh;overflow:hidden;font-family:'Cinzel',serif;color:#3a2817;background:linear-gradient(150deg,#efe4c8 0%,#e7d8b4 42%,#dccca4 100%)">
+
+  <!-- tea stains / foxing -->
+  <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;background:
+      radial-gradient(38vmax 30vmax at 12% 18%, rgba(120,84,44,.20), rgba(120,84,44,0) 60%),
+      radial-gradient(30vmax 34vmax at 88% 82%, rgba(105,68,34,.24), rgba(105,68,34,0) 62%),
+      radial-gradient(24vmax 22vmax at 78% 12%, rgba(140,100,52,.16), rgba(140,100,52,0) 60%),
+      radial-gradient(26vmax 26vmax at 22% 88%, rgba(96,62,30,.18), rgba(96,62,30,0) 62%)"></div>
+  <!-- edge darkening -->
+  <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;background:radial-gradient(115% 105% at 50% 48%, rgba(120,84,44,0) 52%, rgba(88,56,26,.42) 100%)"></div>
+  <!-- paper grain -->
+  <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.14;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22140%22 height=%22140%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>')"></div>
+
+  <!-- printed deco frame -->
+  <div style="position:absolute;inset:40px;border:2px solid #4a3320;pointer-events:none"></div>
+  <div style="position:absolute;inset:48px;border:1px solid #6b5238;pointer-events:none"></div>
+  <div style="position:absolute;top:33px;left:33px;width:30px;height:30px;border-top:3px solid #3a2817;border-left:3px solid #3a2817;pointer-events:none"></div>
+  <div style="position:absolute;top:33px;right:33px;width:30px;height:30px;border-top:3px solid #3a2817;border-right:3px solid #3a2817;pointer-events:none"></div>
+  <div style="position:absolute;bottom:33px;left:33px;width:30px;height:30px;border-bottom:3px solid #3a2817;border-left:3px solid #3a2817;pointer-events:none"></div>
+  <div style="position:absolute;bottom:33px;right:33px;width:30px;height:30px;border-bottom:3px solid #3a2817;border-right:3px solid #3a2817;pointer-events:none"></div>
+
+  <!-- content -->
+  <div style="position:relative;z-index:2;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:min(10vh,92px) 7vw min(8vh,68px);box-sizing:border-box;text-align:center">
+
+    <!-- masthead -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:13px;width:100%">
+      <div style="display:flex;align-items:center;gap:16px;width:min(680px,78vw);color:#4a3320">
+        <div style="flex:1;height:2px;background:#4a3320"></div>
+        <div style="width:10px;height:10px;background:#4a3320;transform:rotate(45deg)"></div>
+        <div style="flex:1;height:2px;background:#4a3320"></div>
+      </div>
+      <h1 style="margin:0;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:clamp(24px,3.6vw,58px);letter-spacing:.1em;color:#2e2013;text-transform:uppercase">{{ trainName }}</h1>
+      <p style="margin:0;font-family:'Special Elite',monospace;font-size:clamp(11px,1.15vw,17px);letter-spacing:.36em;color:#6a4a2c;text-transform:uppercase">The Orient Line &nbsp;·&nbsp; Car No. IX &nbsp;·&nbsp; MCMXXIV</p>
+    </div>
+
+    <!-- center -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:min(3.4vh,32px);width:100%">
+      <p style="margin:0;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(14px,1.7vw,26px);letter-spacing:.5em;color:#6a4a2c;text-transform:uppercase;padding-left:.5em">{{ eyebrow }}</p>
+
+      <div style="display:flex;align-items:center;justify-content:center;line-height:.86;font-weight:700;font-feature-settings:'tnum';color:{{ numColor }};transition:color .8s ease">
+        <sc-for list="{{ timeCells }}" as="cell" hint-placeholder-count="5">
+          <span style="display:inline-block;width:.66em;text-align:center;font-size:clamp(120px,22vw,420px)">{{ cell.ch }}</span>
+        </sc-for>
+      </div>
+
+      <!-- printed rule -->
+      <div style="display:flex;align-items:center;gap:18px;width:min(720px,72vw);color:#4a3320">
+        <div style="width:9px;height:9px;background:#4a3320;transform:rotate(45deg);flex:none"></div>
+        <div style="flex:1;height:2px;background:#4a3320"></div>
+        <div style="width:9px;height:9px;background:#4a3320;transform:rotate(45deg);flex:none"></div>
+      </div>
+    </div>
+
+    <!-- footer status -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
+      <p style="margin:0;font-family:'Special Elite',monospace;font-size:clamp(12px,1.15vw,17px);letter-spacing:.28em;color:{{ statusColor }};text-transform:uppercase">{{ statusLine }}</p>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1920, &quot;height&quot;: 1080 },
+  &quot;durationMinutes&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 60, &quot;min&quot;: 1, &quot;max&quot;: 180, &quot;step&quot;: 1, &quot;unit&quot;: &quot;min&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Timer&quot; },
+  &quot;warnSeconds&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 120, &quot;min&quot;: 10, &quot;max&quot;: 600, &quot;step&quot;: 10, &quot;unit&quot;: &quot;sec&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Timer&quot; },
+  &quot;inkColor&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#3a2817&quot;, &quot;options&quot;: [&quot;#3a2817&quot;, &quot;#2e2013&quot;, &quot;#4a2c1a&quot;, &quot;#7c2b1e&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Style&quot; }
+}">
+const KEY = 'nighttrain_timer_v1';
+
+class Component extends DCLogic {
+  state = { remaining: 3600, running: false, trainName: 'The Midnight Express' };
+
+  total() { return (this.props.durationMinutes ?? 60) * 60; }
+
+  componentDidMount() {
+    fetch('game.json').then(r => r.ok ? r.json() : null).then(g => {
+      if (g && g.train && g.train.name) this.setState({ trainName: g.train.name });
+    }).catch(() => {});
+    this.read();
+    this.ticker = setInterval(() => this.read(), 200);
+  }
+  componentWillUnmount() { clearInterval(this.ticker); }
+
+  // Pure follower: reflects whatever the Game Master's page has written.
+  read() {
+    let rem = this.total(), running = false;
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.running && d.endTime) {
+          rem = Math.max(0, (d.endTime - Date.now()) / 1000);
+          running = rem > 0;
+        } else if (typeof d.remaining === 'number') {
+          rem = d.remaining;
+          running = false;
+        }
+      }
+    } catch (e) {}
+    const shown = Math.ceil(rem);
+    if (shown !== this._shown || running !== this.state.running) {
+      this._shown = shown;
+      this.setState({ remaining: rem, running });
+    }
+  }
+
+  fmt(sec) {
+    const t = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(t / 60), s = t % 60;
+    return (String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'))
+      .split('').map(ch => ({ ch }));
+  }
+
+  renderVals() {
+    const rem = this.state.remaining;
+    const warnAt = this.props.warnSeconds ?? 120;
+    const ink = this.props.inkColor || '#3a2817';
+    const done = rem <= 0;
+    const warn = !done && rem <= warnAt;
+
+    let numColor = ink, statusColor = '#6a4a2c', statusLine;
+    if (done) { numColor = '#7c2b1e'; statusColor = '#7c2b1e'; statusLine = '✦  Now Arriving — All Passengers Ashore  ✦'; }
+    else if (warn) { numColor = '#8a3324'; statusColor = '#8a3324'; statusLine = 'Final Approach — Make Your Accusation'; }
+    else if (this.state.running) { statusLine = 'The Train Is In Motion'; }
+    else { statusLine = 'Awaiting Departure'; }
+
+    return {
+      trainName: this.state.trainName,
+      timeCells: this.fmt(rem),
+      eyebrow: done ? 'Arrived' : 'Time Until Arrival',
+      numColor, statusColor, statusLine,
+    };
+  }
+}
+</script>
+</body>
+</html>

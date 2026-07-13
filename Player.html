@@ -1,0 +1,350 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>The Midnight Express — Passenger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<script src="./dc-net.js"></script>
+<script src="./map.js"></script>
+<style>
+  :root{
+    --bg:#160e07; --panel:#20160c; --panel2:#2a1d10; --line:#4a3418;
+    --brass:#c9a24a; --brass2:#e6c877; --ink:#efe0bd; --dim:#a8895a;
+    --green:#7fae7a; --red:#b5432e; --red2:#7c1f14;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;min-height:100%;background:radial-gradient(130% 80% at 50% 0%,#2c1d10,#0f0905 72%);
+    color:var(--ink);font-family:'Cinzel',serif;-webkit-user-select:none;user-select:none}
+  body{padding:20px 16px calc(30px + env(safe-area-inset-bottom));max-width:520px;margin:0 auto;min-height:100vh}
+  .mono{font-family:'Special Elite',monospace}
+  .hidden{display:none!important}
+  .rule{display:flex;align-items:center;gap:12px;color:var(--brass);margin:0 auto}
+  .rule .l{flex:1;height:2px;background:linear-gradient(90deg,transparent,var(--brass))}
+  .rule .r{flex:1;height:2px;background:linear-gradient(90deg,var(--brass),transparent)}
+  .rule .d{width:8px;height:8px;background:var(--brass);transform:rotate(45deg)}
+  .eyebrow{font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.34em;text-transform:uppercase;color:var(--dim);text-align:center}
+
+  /* ---- code entry ---- */
+  #entry{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;min-height:80vh;text-align:center}
+  #entry h1{font-family:'Cinzel Decorative',serif;font-weight:900;font-size:30px;letter-spacing:.08em;color:var(--brass2);margin:0}
+  #entry p{color:var(--dim);font-size:14px;margin:0;line-height:1.5;letter-spacing:.04em}
+  #codeInput{font-family:'Cinzel',serif;font-weight:700;font-size:38px;letter-spacing:.4em;text-align:center;text-transform:uppercase;
+    width:100%;max-width:280px;padding:16px 10px 16px 22px;color:var(--brass2);background:var(--panel2);
+    border:1px solid var(--line);border-radius:12px;outline:none}
+  #codeInput:focus{border-color:var(--brass)}
+  #entry button{font-family:'Cinzel',serif;font-weight:700;font-size:16px;letter-spacing:.14em;text-transform:uppercase;
+    color:#231607;background:linear-gradient(180deg,#e0ad42,#b8862c);border:1px solid #c9a24a;border-radius:11px;
+    padding:16px 40px;cursor:pointer}
+  #entry button:active{filter:brightness(.92)}
+  #err{color:#e39a86;font-family:'Special Elite',monospace;font-size:12px;letter-spacing:.1em;min-height:16px}
+
+  /* ---- claimed / character ---- */
+  #stage{display:none}
+  .ticket{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--bg));
+    padding:20px 18px;text-align:center;position:relative;overflow:hidden;margin-bottom:16px}
+  .ticket .who{font-family:'Cinzel Decorative',serif;font-weight:900;font-size:26px;line-height:1.1;color:var(--brass2);margin:10px 0 6px;text-wrap:balance}
+  .ticket .role{font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
+  .ticket.dead{border-color:#5e150d}
+  .ticket.dead .who{color:#c78f7f;text-decoration:line-through;text-decoration-color:#7c1f14}
+
+  .status{text-align:center;margin:6px 0 16px}
+  .status .big{font-family:'Cinzel',serif;font-weight:700;font-size:22px;letter-spacing:.04em;margin-top:8px}
+  .status .timer{font-family:'Cinzel',serif;font-weight:700;font-size:48px;font-feature-settings:'tnum';margin-top:4px}
+  .status .timer.warn{color:#e39a86}
+  .status .note{color:var(--dim);font-size:13px;letter-spacing:.04em;margin-top:8px;line-height:1.5}
+  .reportbtn{width:100%;margin-top:26px;font-family:'Cinzel',serif;font-weight:700;font-size:16px;letter-spacing:.1em;padding:17px;border-radius:12px;
+    color:#ffe0d2;background:linear-gradient(180deg,#8a2a1c,#5e150d);border:1px solid #7c1f14;cursor:pointer}
+  .reportbtn:active{filter:brightness(1.12)}
+  .reportcd{margin-top:26px;text-align:center;color:var(--dim);font-family:'Special Elite',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+
+  /* ballot */
+  .ballot{display:flex;flex-direction:column;gap:9px}
+  .cand{display:flex;align-items:center;gap:12px;padding:15px 16px;border:1px solid var(--line);border-radius:12px;
+    background:var(--panel2);cursor:pointer;transition:all .12s;font-size:17px;color:var(--ink)}
+  .cand .num{font-size:12px;color:var(--dim);width:22px;flex:none;text-align:right}
+  .cand .cn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cand .tick{width:22px;flex:none;text-align:center;color:var(--brass2);opacity:0;font-size:18px}
+  .cand:active{filter:brightness(1.12)}
+  .cand.on{border-color:var(--brass);background:linear-gradient(180deg,rgba(201,162,74,.22),rgba(201,162,74,.08));box-shadow:0 0 0 1px rgba(201,162,74,.4)}
+  .cand.on .tick{opacity:1}
+  .cand.skip{margin-top:4px;color:var(--dim)}
+  .cand.skip.on{color:var(--ink)}
+  .locked{opacity:.55;pointer-events:none}
+  .votehint{text-align:center;color:var(--dim);font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.08em;margin-top:12px;line-height:1.6}
+  .trigcap{text-align:center;color:#e39a86;font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:10px}
+
+  /* outcome */
+  .outcome{text-align:center;padding:8px 4px}
+  .outcome .verdict{font-family:'Cinzel Decorative',serif;font-weight:900;font-size:28px;line-height:1.15;color:#2e2013;margin:12px 0}
+  .outcome .accused{color:#e39a86}
+  .yourvote{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);color:var(--dim);font-size:13px;letter-spacing:.04em}
+  .yourvote b{color:var(--ink);font-weight:600}
+
+  #lifectl{margin-top:22px}
+  .lifebtn{width:100%;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.1em;padding:15px;border-radius:11px;cursor:pointer}
+  .lifebtn.kill{color:#e6c9b8;background:linear-gradient(180deg,#5a2018,#3a130d);border:1px solid #7c1f14}
+  .lifebtn.kill:active{filter:brightness(1.15)}
+  .lifebtn.undo{color:var(--dim);background:transparent;border:1px solid var(--line)}
+  .foot{text-align:center;margin-top:22px;color:#6a4f2a;font-family:'Special Elite',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase}
+  .conn{display:inline-flex;align-items:center;gap:6px}
+  .cdot{width:7px;height:7px;border-radius:50%;background:#6a4f2a}
+  .cdot.on{background:var(--green);box-shadow:0 0 7px rgba(127,174,122,.8)}
+</style>
+</head>
+<body>
+
+  <!-- CODE ENTRY -->
+  <div id="entry">
+    <div class="rule" style="width:200px"><div class="l"></div><div class="d"></div><div class="r"></div></div>
+    <h1>The Midnight Express</h1>
+    <p>Enter the code from your ticket<br>to board as your character.</p>
+    <input id="codeInput" class="mono" inputmode="latin" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="4" placeholder="————">
+    <button id="codeBtn">Board</button>
+    <div id="err" class="mono"></div>
+  </div>
+
+  <!-- CHARACTER STAGE -->
+  <div id="stage">
+    <div class="ticket" id="ticket">
+      <div class="eyebrow" id="trainName">The Midnight Express</div>
+      <div class="who" id="who">—</div>
+      <div class="role mono" id="role">—</div>
+    </div>
+
+    <div id="body"></div>
+    <div id="lifectl"></div>
+
+    <div class="foot">
+      <span class="conn"><span class="cdot" id="cdot"></span><span id="connTxt">connecting</span></span>
+      &nbsp;·&nbsp; <span id="seatCode">—</span>
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var SEATS = 'nighttrain_seat_';   // + index + '_v1'
+  var K = { phase: 'nighttrain_phase_v1', vote: 'nighttrain_vote_v1', players: 'nighttrain_players_v1',
+            meeting: 'nighttrain_meeting_v1', cooldown: 'nighttrain_cooldown_v1' };
+
+  var me = null;            // { index, name, role }
+  var roster = [];          // public [{name, role}] for candidate labels
+  var seatKey = null;
+
+  // ---- helpers --------------------------------------------------------------
+  var now = function () { return Date.now(); };
+  function read(k) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function write(k, o) { try { localStorage.setItem(k, JSON.stringify(o)); } catch (e) {} }
+  function synced() { return !!(window.__dcNet && window.__dcNet.ready()); }
+  function fmt(sec) { var t = Math.max(0, Math.ceil(sec)); var m = Math.floor(t / 60), s = t % 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; }
+  function remOf(rec, fb) { if (!rec) return fb; if (rec.running && rec.endTime) return Math.max(0, (rec.endTime - now()) / 1000); if (typeof rec.remaining === 'number') return rec.remaining; return fb; }
+  function param(n) { var m = new RegExp('[?&]' + n + '=([^&]+)').exec(location.search); return m ? decodeURIComponent(m[1]) : null; }
+
+  function phase() { var p = read(K.phase); return (p && p.phase) || 'open'; }
+  function voteRec() { return read(K.vote) || {}; }
+  function voteRound() { var v = read(K.vote); return (v && v.round) || 0; }
+  function gameGen() { var p = read(K.players); return (p && typeof p.gen === 'number') ? p.gen : 0; }
+  function gmDeadArr() { var p = read(K.players); return (p && Array.isArray(p.dead)) ? p.dead : []; }
+  // Effective death: GM-declared OR self-declared for the current generation.
+  function effDead(i) {
+    if (gmDeadArr().indexOf(i) >= 0) return true;
+    var s = read(SEATS + i + '_v1'); return !!(s && s.dead === gameGen());
+  }
+  function mySeat() { return read(seatKey) || {}; }
+  function myVote() { var s = mySeat(); return (s.vote && s.vote.round === voteRound()) ? s.vote.target : null; }
+
+  // ---- claim / session ------------------------------------------------------
+  function claim(code) {
+    code = String(code || '').trim().toUpperCase();
+    if (code.length < 3) { showErr('Enter your code'); return; }
+    fetch('api/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) { showErr('That code isn’t on the manifest'); return; }
+        me = d; seatKey = SEATS + d.index + '_v1';
+        try { localStorage.setItem('mm_code', code); } catch (e) {}
+        document.getElementById('seatCode').textContent = code;
+        startSession();
+      })
+      .catch(function () { showErr('Could not reach the train'); });
+  }
+  function showErr(m) { document.getElementById('err').textContent = m || ''; }
+
+  function markJoined() {
+    var s = mySeat();
+    write(seatKey, { joined: true, vote: (s && s.vote) || null, dead: (s && s.dead != null) ? s.dead : null, at: now() });
+  }
+  function cast(target) {
+    if (isDead() || voteRec().phase !== 'voting' || phase() !== 'voting') return;
+    var s = mySeat();
+    write(seatKey, { joined: true, vote: { round: voteRound(), target: target }, dead: (s && s.dead != null) ? s.dead : null, at: now() });
+    render();
+  }
+  function setSelfDead(dead) {
+    var s = mySeat();
+    write(seatKey, { joined: true, vote: (s && s.vote) || null, dead: dead ? gameGen() : null, at: now() });
+    render();
+  }
+  function isDead() { return effDead(me.index); }
+  function isSelfDead() { var s = mySeat(); return !!(s && s.dead === gameGen()); }
+
+  // The buzzer/report cooldown the GM starts when a vote ends.
+  function cooldownLeft() { var c = read(K.cooldown); if (c && c.armedAt) { var s = Math.ceil((c.armedAt - now()) / 1000); return s > 0 ? s : 0; } return 0; }
+  function armed() { return phase() === 'open' && cooldownLeft() === 0; }
+  // Report a dead body — triggers the vote exactly like the buzzer, but tagged
+  // with who found the body so the main screen can show it.
+  function reportBody() {
+    if (!armed() || isDead()) return;
+    write(K.meeting, { calledAt: now(), source: 'body', reporter: me.index });
+    render();
+  }
+
+  function startSession() {
+    document.getElementById('entry').classList.add('hidden');
+    document.getElementById('stage').style.display = 'block';
+    document.getElementById('who').textContent = me.name;
+    document.getElementById('role').textContent = me.role || 'Passenger';
+    // load public roster for candidate names
+    fetch('game.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (g) {
+      if (g && g.train && g.train.name) document.getElementById('trainName').textContent = g.train.name;
+      roster = (g && Array.isArray(g.characters)) ? g.characters : [];
+      markJoined(); render();
+    }).catch(function () { markJoined(); render(); });
+    setInterval(function () { markPresence(); render(); }, 400);
+  }
+  var lastPresence = 0;
+  function markPresence() { if (now() - lastPresence > 8000) { markJoined(); lastPresence = now(); } }
+
+  // ---- tally (mirrors the main display) -------------------------------------
+  function tally() {
+    var round = voteRound(), N = roster.length;
+    var counts = new Array(N).fill(0), skip = 0;
+    for (var i = 0; i < N; i++) {
+      if (effDead(i)) continue;
+      var s = read(SEATS + i + '_v1');
+      if (!s || !s.joined || !s.vote || s.vote.round !== round) continue;
+      if (s.vote.target === -1) skip++;
+      else if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
+    }
+    var top = -1, best = 0, ties = 0;
+    counts.forEach(function (c, i) { if (c > best) { best = c; top = i; ties = 1; } else if (c === best && c > 0) ties++; });
+    var survive = best <= 0 || ties > 1 || skip >= best;
+    return { counts: counts, skip: skip, accused: survive ? -1 : top, survive: survive };
+  }
+
+  // ---- render ---------------------------------------------------------------
+  function render() {
+    document.getElementById('cdot').classList.toggle('on', synced());
+    document.getElementById('connTxt').textContent = synced() ? 'aboard' : 'connecting';
+
+    var ph = phase(), vr = voteRec(), dead = isDead();
+    document.getElementById('ticket').classList.toggle('dead', dead);
+    renderLife();
+
+    var body = document.getElementById('body');
+
+    // Eliminated — spectator, any phase.
+    if (dead) {
+      body.innerHTML = section('Thrown From The Train',
+        '<div class="status"><div class="note">You have been cast from the Midnight Express. Watch the main car — the story rolls on without you.</div></div>');
+      return;
+    }
+
+    // Open play — waiting, with the option to report a body.
+    if (ph !== 'voting') {
+      var cd = cooldownLeft();
+      var action = cd > 0
+        ? '<div class="reportcd">The alarm is re-arming · ' + fmt(cd) + '</div>'
+        : '<button class="reportbtn" id="reportBtn">☠&nbsp; Report a Dead Body</button>';
+      body.innerHTML = section('The Train Is In Motion',
+        '<div class="status"><div class="note">Mingle, investigate, accuse in whispers. Found a body? Sound the alarm and call a vote.</div></div>' + action);
+      var rb = document.getElementById('reportBtn');
+      if (rb) rb.addEventListener('click', function () {
+        if (confirm('Report a dead body? This calls an emergency meeting and starts a vote for everyone.')) reportBody();
+      });
+      return;
+    }
+
+    // Voting.
+    var sub = vr.phase || 'voting';
+    if (sub === 'voting') {
+      var rem = remOf(vr, 0);
+      var mv = myVote();
+      var trig = read(K.meeting) || {};
+      var trigCap = '';
+      if (trig.source === 'body' && trig.reporter != null && roster[trig.reporter]) trigCap = '☠️ Dead body reported by ' + roster[trig.reporter].name;
+      else if (trig.source === 'buzzer') trigCap = 'The porter’s bell was rung';
+      var cands = '';
+      for (var i = 0; i < roster.length; i++) {
+        if (i === me.index) continue;                 // can't accuse yourself
+        if (effDead(i)) continue;                      // only the living
+        cands += '<div class="cand' + (mv === i ? ' on' : '') + '" data-t="' + i + '">' +
+          '<span class="num">' + roman(i + 1) + '</span><span class="cn">' + esc(roster[i].name) + '</span><span class="tick">✓</span></div>';
+      }
+      var skipOn = mv === -1;
+      body.innerHTML =
+        (trigCap ? '<div class="trigcap">' + esc(trigCap) + '</div>' : '') +
+        '<div class="status"><div class="eyebrow">Ballot closes in</div>' +
+          '<div class="timer' + (rem <= 30 ? ' warn' : '') + '">' + fmt(rem) + '</div></div>' +
+        '<div class="ballot">' + cands +
+          '<div class="cand skip' + (skipOn ? ' on' : '') + '" data-t="-1"><span class="num">—</span>' +
+          '<span class="cn">Abstain · accuse no one</span><span class="tick">✓</span></div>' +
+        '</div>' +
+        '<div class="vothint votehint">' + (mv == null ? 'Tap a passenger to cast your vote.' : 'Vote cast — tap another to change it until the ballot closes.') + '</div>';
+      Array.prototype.forEach.call(body.querySelectorAll('.cand'), function (el) {
+        el.addEventListener('click', function () { cast(parseInt(el.dataset.t, 10)); });
+      });
+      return;
+    }
+
+    // Results / reveal — show the verdict + your own vote.
+    var t = tally();
+    var verdict = t.survive
+      ? '<div class="verdict">Everyone Survives</div>'
+      : '<div class="verdict accused">' + esc(roster[t.accused] ? roster[t.accused].name : '') + '<br><span style="font-family:Cinzel,serif;font-weight:600;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:#a06a5a">Thrown off the train</span></div>';
+    var mv2 = myVote();
+    var yours = mv2 == null ? 'You didn’t cast a vote'
+      : mv2 === -1 ? 'You abstained'
+      : 'You voted for <b>' + esc(roster[mv2] ? roster[mv2].name : '') + '</b>';
+    body.innerHTML = section('The Verdict',
+      '<div class="outcome">' + verdict + '<div class="yourvote">' + yours + '</div></div>');
+  }
+
+  function renderLife() {
+    var el = document.getElementById('lifectl');
+    var selfDead = isSelfDead(), gmDead = gmDeadArr().indexOf(me.index) >= 0;
+    if (gmDead) { el.innerHTML = ''; return; } // thrown off by the vote — not self-reversible
+    if (selfDead) {
+      el.innerHTML = '<button class="lifebtn undo" id="undoDead">I’m still alive — undo</button>';
+      document.getElementById('undoDead').addEventListener('click', function () { setSelfDead(false); });
+    } else {
+      el.innerHTML = '<button class="lifebtn kill" id="killMe">☠&nbsp; I’ve Been Killed</button>';
+      document.getElementById('killMe').addEventListener('click', function () {
+        if (confirm('Mark yourself as killed? The Game Master and the main car will see you’re out of the game.')) setSelfDead(true);
+      });
+    }
+  }
+
+  function section(title, inner) {
+    return '<div class="rule" style="margin-bottom:16px"><div class="l"></div><div class="d"></div><div class="r"></div></div>' +
+      '<div class="eyebrow" style="margin-bottom:6px">' + title + '</div>' + inner;
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function roman(n) { var map = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']], o = ''; for (var k = 0; k < map.length; k++) while (n >= map[k][0]) { o += map[k][1]; n -= map[k][0]; } return o; }
+
+  // ---- boot -----------------------------------------------------------------
+  var input = document.getElementById('codeInput');
+  input.addEventListener('input', function () { this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4); showErr(''); });
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') claim(input.value); });
+  document.getElementById('codeBtn').addEventListener('click', function () { claim(input.value); });
+
+  var initial = param('code') || (function () { try { return localStorage.getItem('mm_code'); } catch (e) { return null; } })();
+  if (initial) claim(initial); else input.focus();
+})();
+</script>
+</body>
+</html>

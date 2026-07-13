@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./dc-net.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+  html,body{height:100%;margin:0;background:#1a120b;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  a{color:#e6c877}a:hover{color:#f3dd9b}
+  @keyframes bzRingGlow{0%,100%{box-shadow:0 0 0 0 rgba(214,168,74,.5),inset 0 6px 22px rgba(255,240,200,.35),inset 0 -14px 30px rgba(60,34,12,.6)}50%{box-shadow:0 0 0 22px rgba(214,168,74,0),inset 0 6px 22px rgba(255,240,200,.45),inset 0 -14px 30px rgba(60,34,12,.6)}}
+  @keyframes bzShake{0%,100%{transform:translate(0,0) rotate(0)}20%{transform:translate(-4px,2px) rotate(-1deg)}40%{transform:translate(4px,-2px) rotate(1deg)}60%{transform:translate(-3px,-2px) rotate(-.6deg)}80%{transform:translate(3px,2px) rotate(.6deg)}}
+  @keyframes bzWave{0%{transform:scale(.4);opacity:.6}100%{transform:scale(2.4);opacity:0}}
+  @keyframes bzFade{from{opacity:0}to{opacity:1}}
+</style>
+</helmet>
+<div style="position:relative;width:100vw;height:100vh;overflow:hidden;font-family:'Cinzel',serif;color:#efe0bd;background:radial-gradient(120% 90% at 50% 34%, #2c1d10 0%, #1c1209 58%, #0f0905 100%);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:min(7vh,64px) 8vw;box-sizing:border-box;text-align:center">
+
+  <!-- woodgrain veneer -->
+  <div style="position:absolute;inset:0;pointer-events:none;opacity:.5;mix-blend-mode:overlay;background:repeating-linear-gradient(92deg, rgba(120,72,30,.14) 0 6px, rgba(60,32,12,.14) 6px 13px)"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(110% 90% at 50% 40%, rgba(0,0,0,0) 46%, rgba(0,0,0,.55) 100%)"></div>
+
+  <!-- top plate -->
+  <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:12px;flex:none">
+    <div style="display:flex;align-items:center;gap:14px;color:#c9a24a">
+      <div style="width:52px;height:2px;background:linear-gradient(90deg,transparent,#c9a24a)"></div>
+      <div style="width:8px;height:8px;background:#c9a24a;transform:rotate(45deg)"></div>
+      <div style="width:52px;height:2px;background:linear-gradient(90deg,#c9a24a,transparent)"></div>
+    </div>
+    <h1 style="margin:0;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:clamp(22px,4.4vw,40px);letter-spacing:.12em;color:#f0e2bf;text-transform:uppercase">{{ buzzerTitle }}</h1>
+    <p style="margin:0;font-family:'Special Elite',monospace;font-size:clamp(10px,2vw,15px);letter-spacing:.34em;color:#a8895a;text-transform:uppercase">{{ buzzerSub }}</p>
+  </div>
+
+  <!-- the brass button -->
+  <div style="position:relative;z-index:2;flex:none;display:flex;flex-direction:column;align-items:center;gap:min(4vh,34px)">
+    <button onClick="{{ onPress }}" style="position:relative;width:min(56vw,52vh);height:min(56vw,52vh);border-radius:50%;border:none;padding:0;cursor:{{ btnCursor }};background:radial-gradient(circle at 38% 30%, #7a5a2c 0%, #5a3f1c 60%, #3a2810 100%);box-shadow:0 22px 50px rgba(0,0,0,.6),0 0 0 12px #2a1c0e,0 0 0 14px #4a3418;-webkit-tap-highlight-color:transparent;transition:transform .12s ease" style-active="transform:scale(.965)">
+      <!-- brass ring -->
+      <div style="position:absolute;inset:5%;border-radius:50%;background:conic-gradient(from 210deg,#c9a24a,#f4e2a6 12%,#8a6a34 28%,#e6c877 46%,#7a5a2c 62%,#f0d58f 80%,#a07c3c 100%);box-shadow:inset 0 3px 10px rgba(255,244,214,.5),inset 0 -8px 20px rgba(40,24,8,.7)"></div>
+      <!-- inner push disc -->
+      <div style="position:absolute;inset:15%;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:min(1.6vh,12px);background:radial-gradient(circle at 42% 34%, {{ discTop }} 0%, {{ discMid }} 58%, {{ discBot }} 100%);transition:background .5s ease;{{ discGlow }}">
+        <span style="font-family:'Cinzel',serif;font-weight:700;font-size:clamp(26px,7vw,64px);color:{{ bellColor }};line-height:1;transition:color .5s ease">&#9863;</span>
+        <span style="font-family:'Cinzel',serif;font-weight:700;font-size:clamp(15px,3.4vw,30px);letter-spacing:.2em;color:{{ labelColor }};text-transform:uppercase;transition:color .5s ease">{{ btnLabel }}</span>
+        <span style="font-family:'Special Elite',monospace;font-size:clamp(9px,1.8vw,13px);letter-spacing:.26em;color:{{ subLabelColor }};text-transform:uppercase;transition:color .5s ease">{{ btnSub }}</span>
+      </div>
+    </button>
+
+    <!-- engraved instruction -->
+    <p style="margin:0;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(13px,2.6vw,22px);letter-spacing:.16em;color:{{ instrColor }};text-transform:uppercase;transition:color .5s ease;animation:{{ instrAnim }}">{{ instruction }}</p>
+  </div>
+
+  <!-- bottom plate: cooldown status -->
+  <div style="position:relative;z-index:2;flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;min-height:70px;justify-content:center">
+    <sc-if value="{{ locked }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <span style="font-family:'Special Elite',monospace;font-size:clamp(10px,2vw,14px);letter-spacing:.3em;color:#8a6c44;text-transform:uppercase">{{ coolLabel }}</span>
+        <sc-if value="{{ showCoolTimer }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:36px;height:1px;background:#6a4f2a"></div>
+            <span style="font-family:'Cinzel',serif;font-weight:700;font-size:clamp(30px,7vw,58px);font-feature-settings:'tnum';color:#d6a84a;line-height:1">{{ cooldownText }}</span>
+            <div style="width:36px;height:1px;background:#6a4f2a"></div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+    <sc-if value="{{ ready }}" hint-placeholder-val="{{ false }}">
+      <span style="font-family:'Special Elite',monospace;font-size:clamp(10px,2vw,14px);letter-spacing:.3em;color:#7fae7a;text-transform:uppercase;animation:bzFade .6s ease both">&#9679;&nbsp; The Cord Is Live</span>
+    </sc-if>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 820, &quot;height&quot;: 1180 }
+}">
+const MKEY = 'nighttrain_meeting_v1';   // the trigger (calledAt/source/reporter)
+const PKEY = 'nighttrain_phase_v1';     // open vs voting
+const CDKEY = 'nighttrain_cooldown_v1'; // { armedAt } — GM-set when a vote ends
+
+class Component extends DCLogic {
+  // status: 'ready' (live), 'cooldown' (re-arming), 'session' (a vote is on), 'ringing'
+  state = { status: 'ready', cooldownLeft: 0, ringing: false,
+            buzzerTitle: "Porter's Call", buzzerSub: 'The Midnight Express · Car No. IX' };
+
+  componentDidMount() {
+    fetch('game.json').then(r => r.ok ? r.json() : null).then(g => {
+      if (!g) return;
+      const name = (g.train && g.train.name) || 'The Midnight Express';
+      const car = (g.train && g.train.car) || '';
+      const title = (g.buzzer && g.buzzer.title) || "Porter's Call";
+      this.setState({ buzzerTitle: title, buzzerSub: car ? (name + ' · ' + car) : name });
+    }).catch(() => {});
+    this.sync();
+    this.timer = setInterval(() => this.sync(), 200);
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearTimeout(this.ringTimer); }
+
+  sync() {
+    // A meeting in progress silences the cord; otherwise the GM's cooldown
+    // (set when the last vote ended) governs when it's live again.
+    let status = 'ready', left = 0;
+    try {
+      const p = JSON.parse(localStorage.getItem(PKEY) || 'null');
+      if (p && p.phase === 'voting') status = 'session';
+    } catch (e) {}
+    if (status !== 'session') {
+      try {
+        const c = JSON.parse(localStorage.getItem(CDKEY) || 'null');
+        if (c && c.armedAt && Date.now() < c.armedAt) {
+          status = 'cooldown';
+          left = Math.ceil((c.armedAt - Date.now()) / 1000);
+        }
+      } catch (e) {}
+    }
+
+    if (status !== this._st || left !== this._left) {
+      this._st = status; this._left = left;
+      this.setState({ status, cooldownLeft: left });
+    }
+  }
+
+  onPress = () => {
+    if (this.state.status !== 'ready' || this.state.ringing) return;
+    // Announce the meeting. The cooldown is NOT started here — the GM starts it
+    // when the resulting vote ends, so every round re-arms the same way.
+    try {
+      localStorage.setItem(MKEY, JSON.stringify({
+        calledAt: Date.now(),
+        source: 'buzzer',
+        reporter: null,
+      }));
+    } catch (e) {}
+    if (navigator.vibrate) navigator.vibrate([40, 60, 120]);
+    this.setState({ ringing: true });
+    clearTimeout(this.ringTimer);
+    this.ringTimer = setTimeout(() => this.setState({ ringing: false }), 2600);
+  };
+
+  fmt(sec) {
+    const t = Math.max(0, sec);
+    const m = Math.floor(t / 60), s = t % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  renderVals() {
+    const ringing = this.state.ringing;
+    const session = this.state.status === 'session' && !ringing;
+    const cooldown = this.state.status === 'cooldown' && !ringing;
+    const ready = this.state.status === 'ready' && !ringing;
+
+    let discTop, discMid, discBot, discGlow = '', bellColor, labelColor, subLabelColor,
+        btnLabel, btnSub, instruction, instrColor, instrAnim = 'none', btnCursor;
+
+    if (ringing) {
+      discTop = '#e8c25a'; discMid = '#c8922f'; discBot = '#9a6b22';
+      discGlow = 'animation:bzRingGlow 1.3s ease-in-out infinite,bzShake .5s ease-in-out;';
+      bellColor = '#3a2810'; labelColor = '#2e2013'; subLabelColor = '#5a4018';
+      btnLabel = 'Ringing'; btnSub = 'Assembly Called';
+      instruction = 'All Passengers to the Parlour Car'; instrColor = '#f0d58f';
+      instrAnim = 'bzFade .5s ease both'; btnCursor = 'default';
+    } else if (session) {
+      discTop = '#4a3922'; discMid = '#3a2c18'; discBot = '#241a0e';
+      bellColor = '#6a5230'; labelColor = '#8a6c44'; subLabelColor = '#6a4f2a';
+      btnLabel = 'Silenced'; btnSub = 'Meeting Underway';
+      instruction = 'The Passengers Are Voting'; instrColor = '#8a6c44'; btnCursor = 'not-allowed';
+    } else if (cooldown) {
+      discTop = '#4a3922'; discMid = '#3a2c18'; discBot = '#241a0e';
+      bellColor = '#6a5230'; labelColor = '#8a6c44'; subLabelColor = '#6a4f2a';
+      btnLabel = 'Silenced'; btnSub = 'Please Wait';
+      instruction = 'The Bell Is Cooling'; instrColor = '#8a6c44'; btnCursor = 'not-allowed';
+    } else {
+      discTop = '#e8c25a'; discMid = '#b8862c'; discBot = '#7a5420';
+      discGlow = 'animation:bzRingGlow 2.6s ease-in-out infinite;';
+      bellColor = '#3a2810'; labelColor = '#2e2013'; subLabelColor = '#5a4018';
+      btnLabel = 'Ring'; btnSub = 'Call a Meeting';
+      instruction = 'Press to Summon the Passengers'; instrColor = '#d6a84a';
+      instrAnim = 'bzFade .6s ease both'; btnCursor = 'pointer';
+    }
+
+    return {
+      buzzerTitle: this.state.buzzerTitle,
+      buzzerSub: this.state.buzzerSub,
+      locked: session || cooldown,       // bottom status block shows for both
+      coolLabel: cooldown ? 'Bell Re-Arming' : 'Meeting In Session',
+      showCoolTimer: cooldown,           // only the cooldown shows a countdown
+      ready,
+      wave1: ringing ? 1 : 0,
+      cooldownText: this.fmt(this.state.cooldownLeft),
+      discTop, discMid, discBot, discGlow,
+      bellColor, labelColor, subLabelColor,
+      btnLabel, btnSub, instruction, instrColor, instrAnim, btnCursor,
+      onPress: this.onPress,
+    };
+  }
+}
+</script>
+</body>
+</html>

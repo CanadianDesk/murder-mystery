@@ -1,0 +1,682 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Midnight Express — Game Master</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<!-- Load the net shim FIRST so localStorage(nighttrain_*) is live shared state. -->
+<script src="./dc-net.js"></script>
+<script src="./map.js"></script>
+<style>
+  :root{
+    --bg:#160e07; --panel:#20160c; --panel2:#2a1d10; --line:#4a3418;
+    --brass:#c9a24a; --brass2:#e6c877; --ink:#efe0bd; --dim:#a8895a;
+    --green:#7fae7a; --red:#b5432e; --red2:#7c1f14;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:radial-gradient(130% 90% at 50% 0%,#2c1d10,#0f0905 70%);
+    color:var(--ink);font-family:'Cinzel',serif;min-height:100%}
+  body{padding:14px 14px calc(28px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+  .mono{font-family:'Special Elite',monospace}
+  h1,h2,h3{margin:0}
+  /* header */
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .brand{display:flex;flex-direction:column;gap:2px}
+  .brand h1{font-size:19px;letter-spacing:.14em;color:var(--brass2)}
+  .brand .sub{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim)}
+  .conn{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#6a4f2a;box-shadow:0 0 8px transparent;transition:all .3s}
+  .dot.on{background:var(--green);box-shadow:0 0 9px rgba(127,174,122,.8)}
+  /* phase badge */
+  .phase{display:flex;align-items:center;justify-content:center;gap:12px;padding:14px;margin-bottom:12px;
+    border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--bg));position:relative;overflow:hidden}
+  .phase .lbl{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--dim)}
+  .phase .val{font-family:'Cinzel',serif;font-weight:700;font-size:26px;letter-spacing:.1em}
+  .phase.open .val{color:var(--brass2)}
+  .phase.voting .val{color:#e39a86}
+  /* buzz toast */
+  .buzz{position:fixed;left:0;right:0;top:0;z-index:50;background:linear-gradient(180deg,#8a2a1c,#5e150d);
+    color:#ffe9c9;text-align:center;padding:14px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    transform:translateY(-120%);transition:transform .4s cubic-bezier(.2,.8,.2,1);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .buzz.show{transform:translateY(0)}
+  /* password gate */
+  #gate{position:fixed;inset:0;z-index:100;background:radial-gradient(130% 90% at 50% 0%,#2c1d10,#0a0603 75%);
+    display:flex;align-items:center;justify-content:center;padding:24px}
+  .gatebox{width:100%;max-width:340px;text-align:center;display:flex;flex-direction:column;gap:16px}
+  .gatebox .gl{font-family:'Cinzel Decorative',serif;font-weight:900;font-size:26px;letter-spacing:.1em;color:var(--brass2)}
+  .gatebox .gs{font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);margin-top:-8px}
+  #gpw{font-family:'Cinzel',serif;font-size:20px;letter-spacing:.1em;text-align:center;padding:15px;color:var(--ink);
+    background:var(--panel2);border:1px solid var(--line);border-radius:11px;outline:none}
+  #gpw:focus{border-color:var(--brass)}
+  #gbtn{font-family:'Cinzel',serif;font-weight:700;font-size:16px;letter-spacing:.14em;text-transform:uppercase;
+    color:#231607;background:linear-gradient(180deg,#e0ad42,#b8862c);border:1px solid #c9a24a;border-radius:11px;padding:15px;cursor:pointer}
+  #gerr{color:#e39a86;font-family:'Special Elite',monospace;font-size:12px;min-height:16px}
+  /* cards */
+  .card{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--bg));
+    padding:14px;margin-bottom:12px}
+  .card.active{border-color:var(--brass);box-shadow:0 0 0 1px rgba(201,162,74,.3),0 10px 30px rgba(0,0,0,.35)}
+  .card h3{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;
+    display:flex;align-items:center;justify-content:space-between}
+  .clock{font-family:'Cinzel',serif;font-weight:700;font-size:56px;letter-spacing:.04em;text-align:center;
+    font-feature-settings:'tnum';line-height:1;margin:4px 0 12px;color:var(--ink)}
+  .clock.warn{color:#e39a86}
+  .clock.done{color:var(--red)}
+  /* buttons */
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .row+.row{margin-top:8px}
+  button{font-family:'Cinzel',serif;font-weight:600;font-size:14px;letter-spacing:.06em;color:var(--ink);
+    background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px 10px;cursor:pointer;
+    flex:1;min-width:0;transition:filter .12s,background .12s;user-select:none}
+  button:hover{filter:brightness(1.15)}
+  button:active{filter:brightness(.9)}
+  button:disabled{opacity:.32;cursor:not-allowed;filter:none}
+  button.primary{background:linear-gradient(180deg,#b8862c,#7a5420);border-color:#c9a24a;color:#231607;font-weight:700}
+  button.wide{flex-basis:100%}
+  button.sm{font-size:13px;padding:10px 6px}
+  button.danger{background:linear-gradient(180deg,#8a2a1c,#5e150d);border-color:#7c1f14;color:#ffe0d2}
+  .adj{font-family:'Special Elite',monospace;font-size:13px}
+  /* roster */
+  .rosterhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .count{font-family:'Special Elite',monospace;font-size:12px;letter-spacing:.14em;color:var(--dim)}
+  .count b{color:var(--green);font-weight:400}
+  .roster{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .pl{display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
+    background:var(--panel2);cursor:pointer;min-width:0;transition:all .15s}
+  .pl .nm{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.12}
+  .pl .nm .n{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl .nm .r{font-family:'Special Elite',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl .st{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--green)}
+  .pl.dead{background:#1a0f0a;border-color:#5e150d;opacity:.85}
+  .pl.dead .n{color:#c78f7f;text-decoration:line-through;text-decoration-color:#7c1f14}
+  .pl.dead .st{color:var(--red)}
+  /* verdict */
+  .verdict{margin-top:10px}
+  label.fld{display:block;font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  select{width:100%;font-family:'Cinzel',serif;font-size:15px;color:var(--ink);background:var(--panel2);
+    border:1px solid var(--line);border-radius:9px;padding:12px 10px}
+  .hint{font-family:'Special Elite',monospace;font-size:10.5px;letter-spacing:.06em;color:#8a6c44;margin-top:8px;line-height:1.5}
+  .divider{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);margin:14px 0}
+  /* live tally */
+  .tally{margin-top:12px}
+  .tally .sum{font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);text-align:center;margin-bottom:10px}
+  .tally .trow{display:flex;align-items:center;gap:10px;padding:6px 2px}
+  .tally .tnm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+  .tally .tbar{flex:1.2;height:8px;background:rgba(107,82,56,.25);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  .tally .tbar i{display:block;height:100%;background:var(--brass);border-radius:4px;transition:width .4s ease}
+  .tally .trow.lead .tbar i{background:#e39a86}
+  .tally .tct{width:22px;text-align:right;font-weight:700;font-size:15px}
+  .tally .empty{color:#8a6c44;font-family:'Special Elite',monospace;font-size:11px;text-align:center;padding:8px}
+  /* seat codes */
+  .seatlist{display:flex;flex-direction:column;gap:7px}
+  .seat{border:1px solid var(--line);border-radius:9px;background:var(--panel2);overflow:hidden}
+  .seat .sr{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer}
+  .seat .sdot{width:8px;height:8px;border-radius:50%;background:#6a4f2a;flex:none}
+  .seat .sdot.on{background:var(--green);box-shadow:0 0 7px rgba(127,174,122,.8)}
+  .seat .snm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+  .seat .scode{font-family:'Special Elite',monospace;font-size:15px;letter-spacing:.28em;color:var(--brass2)}
+  .seat .schev{color:var(--dim);font-size:11px;flex:none}
+  .seat .qrwrap{display:none;padding:14px;background:#fff;text-align:center}
+  .seat.open .qrwrap{display:block}
+  .seat .qrwrap svg{width:180px;height:180px;max-width:70%}
+  .seat .qrwrap .u{display:block;margin-top:8px;font-family:'Special Elite',monospace;font-size:10px;color:#555;word-break:break-all}
+</style>
+</head>
+<body>
+  <div id="gate">
+    <div class="gatebox">
+      <div class="gl">Game Master</div>
+      <div class="gs">The Midnight Express</div>
+      <input id="gpw" type="password" inputmode="text" autocomplete="off" placeholder="Password">
+      <button id="gbtn">Enter</button>
+      <div id="gerr" class="mono"></div>
+    </div>
+  </div>
+
+  <div class="buzz mono" id="buzz">🔔 &nbsp;Buzzer pressed — moving to the vote</div>
+
+  <header>
+    <div class="brand">
+      <h1>GAME MASTER</h1>
+      <div class="sub" id="trainName">The Midnight Express</div>
+    </div>
+    <div class="conn"><span class="dot" id="dot"></span><span id="connTxt">connecting</span></div>
+  </header>
+
+  <div class="phase open" id="phaseBadge">
+    <span class="lbl">Phase</span>
+    <span class="val" id="phaseVal">Open Play</span>
+  </div>
+
+  <!-- Phase orchestration -->
+  <div class="card">
+    <h3>Phase Control</h3>
+    <div class="row">
+      <button class="primary" id="btnCallVote">Call a Vote</button>
+      <button id="btnReturn">Return to Open Play</button>
+    </div>
+    <div class="row">
+      <button class="sm" id="btnResults">Show Results</button>
+      <button class="sm" id="btnReveal">Show Reveal</button>
+      <button class="sm" id="btnBackVoting">Back to Voting</button>
+    </div>
+  </div>
+
+  <!-- Main (open-play) timer -->
+  <div class="card" id="mainCard">
+    <h3>Open Play · Main Timer <span class="mono" id="mainState"></span></h3>
+    <div class="clock" id="mainClock">60:00</div>
+    <div class="row">
+      <button class="primary" id="mainToggle">Start</button>
+      <button id="mainRestart">Restart</button>
+    </div>
+    <div class="row">
+      <button class="sm adj" data-madj="-60">−1:00</button>
+      <button class="sm adj" data-madj="-30">−0:30</button>
+      <button class="sm adj" data-madj="30">+0:30</button>
+      <button class="sm adj" data-madj="60">+1:00</button>
+    </div>
+    <div class="row">
+      <button class="sm" data-mdur="1800">30m</button>
+      <button class="sm" data-mdur="2700">45m</button>
+      <button class="sm" data-mdur="3600">60m</button>
+      <button class="sm" data-mdur="5400">90m</button>
+    </div>
+  </div>
+
+  <!-- Voting timer -->
+  <div class="card" id="voteCard">
+    <h3>Voting · Ballot Timer <span class="mono" id="voteState"></span></h3>
+    <div class="clock" id="voteClock">02:00</div>
+    <div class="row">
+      <button class="primary" id="voteToggle">Start</button>
+      <button id="voteRestart">Restart</button>
+    </div>
+    <div class="row">
+      <button class="sm adj" data-vadj="-15">−0:15</button>
+      <button class="sm adj" data-vadj="15">+0:15</button>
+      <button class="sm adj" data-vadj="30">+0:30</button>
+    </div>
+    <div class="row">
+      <button class="sm" data-vdur="60">60s</button>
+      <button class="sm" data-vdur="90">90s</button>
+      <button class="sm" data-vdur="120">120s</button>
+      <button class="sm" data-vdur="180">180s</button>
+    </div>
+    <div class="tally" id="tally"></div>
+    <div class="hint">Ballots auto-close once every living, boarded player has voted. To eliminate the accused, tap them in the manifest below.</div>
+  </div>
+
+  <!-- Roster -->
+  <div class="card">
+    <div class="rosterhead">
+      <h3 style="margin:0">The Manifest</h3>
+      <span class="count"><b id="aliveN">0</b> living · <span id="deadN">0</span> lost</span>
+    </div>
+    <div class="roster" id="roster"></div>
+    <div class="hint">Tap a passenger to toggle alive / thrown from the train.</div>
+  </div>
+
+  <!-- Passenger codes / QR -->
+  <div class="card">
+    <h3>Passenger Codes <span class="mono" id="joinedN"></span></h3>
+    <div class="seatlist" id="seatList"></div>
+    <div class="hint">Show each player their code or QR to board. Tap a row for its QR.</div>
+  </div>
+
+  <div class="divider"></div>
+  <div class="row">
+    <button class="danger wide" id="btnNewGame">Start a New Game</button>
+  </div>
+
+<script>
+// ---- password gate (persists locally once entered) --------------------------
+(function () {
+  var GATE_KEY = 'mm_gm_ok';
+  var gate = document.getElementById('gate');
+  if (localStorage.getItem(GATE_KEY) === '1') { gate.style.display = 'none'; return; }
+  var pw = document.getElementById('gpw'), btn = document.getElementById('gbtn'), err = document.getElementById('gerr');
+  function submit() {
+    fetch('api/gm-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw.value }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok) { try { localStorage.setItem(GATE_KEY, '1'); } catch (e) {} gate.style.display = 'none'; }
+        else { err.textContent = 'Wrong password'; pw.value = ''; pw.focus(); }
+      })
+      .catch(function () { err.textContent = 'Cannot reach the server'; });
+  }
+  btn.addEventListener('click', submit);
+  pw.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+  pw.focus();
+})();
+
+(function () {
+  'use strict';
+
+  // ---- shared-state keys (synced across every device by dc-net.js) ----------
+  var K = {
+    phase:   'nighttrain_phase_v1',
+    timer:   'nighttrain_timer_v1',
+    vote:    'nighttrain_vote_v1',
+    players: 'nighttrain_players_v1',
+    meeting: 'nighttrain_meeting_v1',  // { calledAt, source:'buzzer'|'body'|'manual', reporter }
+    cooldown: 'nighttrain_cooldown_v1', // { armedAt } — buzzer/report live again once passed
+  };
+  var SEATS = 'nighttrain_seat_'; // + index + '_v1' — each player owns their own
+
+  var DEFAULT_MAIN = 3600; // 60 min
+  var DEFAULT_VOTE = 120;  // 2 min
+  var DEFAULT_COOLDOWN = 90; // buzzer/report re-arm delay after a vote
+
+  var roster = [];         // [{name, role}]
+  var N = 0;
+  var cooldownSecs = DEFAULT_COOLDOWN; // from game.json (meeting.cooldownSeconds)
+
+  // ---- tiny helpers ---------------------------------------------------------
+  var now = function () { return Date.now(); };
+  function read(k) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function write(k, o) { try { localStorage.setItem(k, JSON.stringify(o)); } catch (e) {} }
+  function del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  function zeros(n) { return new Array(n).fill(0); }
+  function clamp0(x) { return x < 0 ? 0 : x; }
+  function fmt(sec) {
+    var t = Math.max(0, Math.ceil(sec));
+    var m = Math.floor(t / 60), s = t % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  // remaining seconds for a {running,endTime,remaining} record
+  function remOf(rec, fallback) {
+    if (!rec) return fallback;
+    if (rec.running && rec.endTime) return clamp0((rec.endTime - now()) / 1000);
+    if (typeof rec.remaining === 'number') return rec.remaining;
+    return fallback;
+  }
+
+  // ---- current view of the world -------------------------------------------
+  function phase() { var p = read(K.phase); return (p && p.phase) || 'open'; }
+  function mainDur() { var t = read(K.timer); return (t && t.duration) || DEFAULT_MAIN; }
+  function voteDur() { var v = read(K.vote); return (v && v.duration) || DEFAULT_VOTE; }
+  function voteRec() { return read(K.vote) || { phase: 'voting', round: 0, duration: DEFAULT_VOTE }; }
+  function voteRound() { var v = read(K.vote); return (v && v.round) || 0; }
+  function seatKey(i) { return SEATS + i + '_v1'; }
+  function readSeat(i) { return read(seatKey(i)); }
+
+  // Death has two lanes, merged everywhere:
+  //   GM-declared  — players key `dead` array (thrown off / GM calls it)
+  //   self-declared — a player's own seat.dead === current generation
+  // "New Game" bumps the generation, which retires every self-declared death.
+  function playersRec() { return read(K.players) || { dead: [], gen: 0 }; }
+  function gen() { return playersRec().gen || 0; }
+  function gmDead() { var d = playersRec().dead; return Array.isArray(d) ? d.slice() : []; }
+  function writePlayers(dead) { write(K.players, { dead: dead, gen: gen() }); }
+  function effDeadSet() {
+    var g = gen(), set = {};
+    gmDead().forEach(function (i) { set[i] = true; });
+    for (var i = 0; i < N; i++) { var s = readSeat(i); if (s && s.dead === g) set[i] = true; }
+    return set;
+  }
+
+  // Aggregate live player ballots for the current round.
+  function tally() {
+    var round = voteRound(), dead = effDeadSet();
+    var counts = zeros(N), skip = 0, joined = [], voted = [];
+    for (var i = 0; i < N; i++) {
+      if (dead[i]) continue;
+      var s = readSeat(i);
+      if (!s || !s.joined) continue;
+      joined.push(i);
+      if (s.vote && s.vote.round === round) {
+        voted.push(i);
+        if (s.vote.target === -1) skip++;
+        else if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
+      }
+    }
+    return { round: round, counts: counts, skip: skip, joined: joined, voted: voted };
+  }
+  // Who the vote condemns (or -1 for a split / no result).
+  function accusedIndex() {
+    var t = tally(), lead = -1, best = 0, ties = 0;
+    t.counts.forEach(function (c, i) { if (c > best) { best = c; lead = i; ties = 1; } else if (c === best && c > 0) ties++; });
+    if (best <= 0 || ties > 1 || t.skip >= best) return -1;
+    return lead;
+  }
+
+  // ---- writes: main timer ---------------------------------------------------
+  function mainStart() { var d = mainDur(); var r = remOf(read(K.timer), d) || d; write(K.timer, { running: true, endTime: now() + r * 1000, remaining: r, duration: d }); }
+  function mainPause() { var d = mainDur(); write(K.timer, { running: false, remaining: remOf(read(K.timer), d), duration: d }); }
+  function mainRestart() { var d = mainDur(); write(K.timer, { running: true, endTime: now() + d * 1000, remaining: d, duration: d }); }
+  function mainAdjust(delta) {
+    var d = mainDur(), t = read(K.timer), r = clamp0(remOf(t, d) + delta);
+    if (t && t.running) write(K.timer, { running: true, endTime: now() + r * 1000, remaining: r, duration: d });
+    else write(K.timer, { running: false, remaining: r, duration: d });
+  }
+  function setMainDur(sec) { write(K.timer, { running: false, remaining: sec, duration: sec }); }
+
+  // ---- writes: vote timer (preserve phase/votes/skip) ----------------------
+  function voteMerge(patch) {
+    var base = voteRec();
+    var next = Object.assign({}, base, patch);
+    if (next.duration == null) next.duration = base.duration || DEFAULT_VOTE;
+    write(K.vote, next);
+  }
+  function voteStart() { var d = voteDur(); var r = remOf(read(K.vote), d) || d; voteMerge({ running: true, endTime: now() + r * 1000, remaining: r }); }
+  function votePause() { voteMerge({ running: false, remaining: remOf(read(K.vote), voteDur()) }); }
+  function voteRestart() { var d = voteDur(); voteMerge({ running: true, endTime: now() + d * 1000, remaining: d, phase: 'voting' }); }
+  function voteAdjust(delta) {
+    var v = read(K.vote), r = clamp0(remOf(v, voteDur()) + delta);
+    if (v && v.running) voteMerge({ running: true, endTime: now() + r * 1000, remaining: r });
+    else voteMerge({ running: false, remaining: r });
+  }
+  function setVoteDur(sec) { voteMerge({ running: false, remaining: sec, duration: sec }); }
+  function setVotePhase(p) {
+    if (p === 'results') voteMerge({ phase: 'results', running: false, remaining: 0 });
+    else voteMerge({ phase: p });
+  }
+  function nextRound() { return voteRound() + 1; }
+
+  // Results → reveal is GM-driven so the condemned passenger dies exactly on reveal.
+  var REVEAL_DELAY = 6000;
+  var _resultsSince = null, _killedRound = null;
+  function revealNow() {
+    var acc = accusedIndex();
+    if (acc >= 0 && _killedRound !== voteRound()) { addDead(acc); _killedRound = voteRound(); }
+    voteMerge({ phase: 'reveal' });
+  }
+  function tickReveal() {
+    if (phase() !== 'voting') { _resultsSince = null; return; }
+    var v = read(K.vote); if (!v) return;
+    if (v.phase === 'results') {
+      if (_resultsSince == null) _resultsSince = now();
+      if (now() - _resultsSince > REVEAL_DELAY) revealNow();
+    } else if (v.phase !== 'reveal') { _resultsSince = null; }
+  }
+
+  // ---- writes: phase orchestration -----------------------------------------
+  function setPhase(p) { write(K.phase, { phase: p, since: now() }); }
+
+  // Full transition into a fresh vote: pause the main timer, switch the TV,
+  // reset the ballot. Used by the "Call a Vote" button AND the buzzer.
+  // Core transition into a fresh vote. Does NOT touch the trigger metadata, so a
+  // buzzer / body report that started it stays visible on the voting screen.
+  function enterVoting() {
+    _resultsSince = null; _killedRound = null;
+    setPhase('voting');
+    mainPause();
+    // Bump the round so any leftover ballots from a previous vote are retired.
+    write(K.vote, { running: false, remaining: voteDur(), duration: voteDur(), phase: 'voting', round: nextRound() });
+    var m = read(K.meeting); buzzSeen = (m && m.calledAt) || 0; // this trigger is handled
+  }
+  // Manual GM-initiated vote (no buzzer / body report).
+  function callVoteManual() {
+    write(K.meeting, { calledAt: now(), source: 'manual', reporter: null });
+    enterVoting();
+  }
+  // Back to open play: resume the main timer, and START the buzzer/report cooldown
+  // now — after every round, however it was triggered.
+  function returnToOpen() {
+    _resultsSince = null;
+    setPhase('open');
+    mainStart();          // resume from where it paused
+    write(K.cooldown, { armedAt: now() + cooldownSecs * 1000 });
+    voteMerge({ running: false });
+  }
+  function newGame() {
+    _resultsSince = null; _killedRound = null;
+    setPhase('open');
+    setMainDur(mainDur());   // reset paused at full
+    // Bump the generation so self-declared deaths retire; everyone is alive again.
+    write(K.players, { dead: [], gen: gen() + 1 });
+    // New round retires every prior ballot without needing to clear each seat.
+    write(K.vote, { running: false, remaining: voteDur(), duration: voteDur(), phase: 'voting', round: nextRound() });
+    del(K.meeting);
+    write(K.cooldown, { armedAt: 0 }); // buzzer/report live immediately for a new game
+    buzzSeen = latestBuzz();
+  }
+
+  // ---- writes: roster -------------------------------------------------------
+  function toggleDead(idx) {
+    var eff = effDeadSet(), dead = gmDead(), at = dead.indexOf(idx);
+    if (eff[idx]) {
+      // Revive: drop from the GM lane and clear any self-declared death too.
+      if (at >= 0) dead.splice(at, 1);
+      var s = readSeat(idx); if (s && s.dead != null) { s.dead = null; write(seatKey(idx), s); }
+    } else {
+      dead.push(idx);
+    }
+    writePlayers(dead);
+  }
+  function addDead(idx) { var d = gmDead(); if (d.indexOf(idx) < 0) { d.push(idx); writePlayers(d); } }
+
+  // Auto-close the ballot the moment every living, boarded player has voted.
+  function checkEarlyClose() {
+    if (phase() !== 'voting') return;
+    var v = read(K.vote); if (!v || v.phase !== 'voting') return;
+    var t = tally();
+    if (t.joined.length > 0 && t.voted.length >= t.joined.length) setVotePhase('results');
+  }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---- seat codes / QR ------------------------------------------------------
+  var seats = []; // [{ index, name, role, code, joinUrl }]
+  function loadSeats() {
+    fetch('api/seats').then(function (r) { return r.ok ? r.json() : []; }).then(function (list) {
+      seats = list || []; buildSeatList();
+    }).catch(function () {});
+  }
+  function buildSeatList() {
+    var host = document.getElementById('seatList'); host.innerHTML = '';
+    seats.forEach(function (s) {
+      var el = document.createElement('div'); el.className = 'seat'; el.dataset.idx = s.index;
+      el.innerHTML = '<div class="sr"><span class="sdot"></span><span class="snm"></span>' +
+        '<span class="scode"></span><span class="schev">QR ▾</span></div><div class="qrwrap"></div>';
+      el.querySelector('.snm').textContent = s.name;
+      el.querySelector('.scode').textContent = s.code;
+      el.querySelector('.sr').addEventListener('click', function () {
+        var open = el.classList.toggle('open');
+        var wrap = el.querySelector('.qrwrap');
+        if (open && !wrap.dataset.loaded) {
+          var img = document.createElement('img'); img.alt = 'QR for ' + s.code;
+          img.style.cssText = 'width:200px;height:200px;max-width:80%';
+          img.src = 'qr?code=' + encodeURIComponent(s.code);
+          var u = document.createElement('span'); u.className = 'u'; u.textContent = s.joinUrl;
+          wrap.appendChild(img); wrap.appendChild(u); wrap.dataset.loaded = '1';
+        }
+      });
+      host.appendChild(el);
+    });
+  }
+  function renderTally() {
+    var el = document.getElementById('tally'); if (!el) return;
+    if (phase() !== 'voting') { el.innerHTML = ''; return; }
+    var t = tally();
+    var lead = -1, best = 0, ties = 0;
+    t.counts.forEach(function (c, i) { if (c > best) { best = c; lead = i; ties = 1; } else if (c === best && c > 0) ties++; });
+    var max = Math.max(1, t.skip, best);
+    var rows = '', any = false;
+    t.counts.forEach(function (c, i) {
+      if (c <= 0) return; any = true;
+      var isLead = (i === lead && ties === 1 && t.skip < best);
+      rows += '<div class="trow' + (isLead ? ' lead' : '') + '"><span class="tnm">' + esc(roster[i] ? roster[i].name : '') +
+        '</span><span class="tbar"><i style="width:' + (c / max * 100).toFixed(0) + '%"></i></span><span class="tct">' + c + '</span></div>';
+    });
+    if (t.skip > 0) { any = true; rows += '<div class="trow"><span class="tnm" style="color:#a8895a">Abstain</span><span class="tbar"><i style="width:' + (t.skip / max * 100).toFixed(0) + '%;background:#8a6c44"></i></span><span class="tct">' + t.skip + '</span></div>'; }
+    var sum = t.joined.length ? (t.voted.length + ' of ' + t.joined.length + ' aboard have voted') : 'No players boarded yet';
+    el.innerHTML = '<div class="sum">' + sum + '</div>' + (any ? rows : '<div class="empty">Awaiting the first ballot…</div>');
+  }
+  function renderSeats() {
+    var host = document.getElementById('seatList'); if (!host) return;
+    var joined = 0, els = host.children;
+    for (var i = 0; i < els.length; i++) {
+      var idx = parseInt(els[i].dataset.idx, 10);
+      var s = readSeat(idx), on = !!(s && s.joined);
+      if (on) joined++;
+      els[i].querySelector('.sdot').classList.toggle('on', on);
+    }
+    document.getElementById('joinedN').textContent = seats.length ? (joined + ' / ' + seats.length + ' aboard') : '';
+  }
+
+  // ---- buzzer watch (the brain) --------------------------------------------
+  var buzzSeen = null;      // calledAt we've already handled
+  var buzzInit = false;
+  function latestBuzz() { var m = read(K.meeting); return (m && m.calledAt) || 0; }
+  function watchTrigger() {
+    if (!(window.__dcNet && window.__dcNet.ready())) return; // wait for sync
+    if (!buzzInit) { buzzSeen = latestBuzz(); buzzInit = true; return; } // ignore what was already there
+    if (phase() !== 'open') return;
+    var m = read(K.meeting);
+    if (m && (m.calledAt || 0) > buzzSeen && (m.source === 'buzzer' || m.source === 'body')) {
+      buzzSeen = m.calledAt;
+      flashTrigger(m);
+      enterVoting();
+    }
+  }
+  var buzzTimer = null;
+  function flashTrigger(m) {
+    var el = document.getElementById('buzz');
+    if (m && m.source === 'body') {
+      var who = (m.reporter != null && roster[m.reporter]) ? roster[m.reporter].name : 'Someone';
+      el.innerHTML = '☠&nbsp; Dead body reported by ' + esc(who) + ' — moving to the vote';
+    } else {
+      el.innerHTML = '🔔&nbsp; Buzzer pressed — moving to the vote';
+    }
+    el.classList.add('show');
+    clearTimeout(buzzTimer);
+    buzzTimer = setTimeout(function () { el.classList.remove('show'); }, 4500);
+  }
+
+  // ---- load roster / train name --------------------------------------------
+  function buildRoster() {
+    var host = document.getElementById('roster');
+    host.innerHTML = '';
+    roster.forEach(function (c, i) {
+      var d = document.createElement('div');
+      d.className = 'pl'; d.dataset.idx = i;
+      d.innerHTML = '<div class="nm"><span class="n"></span><span class="r"></span></div><span class="st">Alive</span>';
+      d.querySelector('.n').textContent = c.name;
+      d.querySelector('.r').textContent = c.role || '';
+      d.addEventListener('click', function () { toggleDead(i); render(); });
+      host.appendChild(d);
+    });
+  }
+  function loadGame() {
+    fetch('game.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (g) {
+      if (!g) { roster = fallbackRoster(); }
+      else {
+        document.getElementById('trainName').textContent = (g.train && g.train.name) || 'The Midnight Express';
+        roster = (Array.isArray(g.characters) && g.characters.length) ? g.characters : fallbackRoster();
+        if (g.meeting && typeof g.meeting.cooldownSeconds === 'number') cooldownSecs = g.meeting.cooldownSeconds;
+      }
+      N = roster.length; buildRoster(); render();
+    }).catch(function () { roster = fallbackRoster(); N = roster.length; buildRoster(); render(); });
+  }
+  function fallbackRoster() {
+    return ['Col. Reginald Ashworth','The Contessa von Halle','Dr. Silas Mortimer','Miss Evelyn Carr',
+      'Mr. Harlan Vane','Lady Prudence Ashworth','Capt. Thomas Blackwood','Mme. Colette Dubois',
+      'Rev. Josiah Penhallow','Miss Ada Sinclair','Mr. Vincent Crane','Signor Marco Ferretti',
+      'Prof. Edmund Gray','Nurse Agnes Holloway','Mr. Cornelius Dodd','Miss Ruby Lamarr'].map(function (n) { return { name: n, role: '' }; });
+  }
+
+  // ---- render loop ----------------------------------------------------------
+  function render() {
+    var ph = phase(), voting = ph === 'voting';
+    var vr = voteRec();
+
+    // connection
+    var ready = !!(window.__dcNet && window.__dcNet.ready());
+    document.getElementById('dot').classList.toggle('on', ready);
+    document.getElementById('connTxt').textContent = ready ? 'live' : 'connecting';
+
+    // phase badge
+    var badge = document.getElementById('phaseBadge');
+    badge.className = 'phase ' + (voting ? 'voting' : 'open');
+    var sub = voting ? (vr.phase === 'reveal' ? ' · Reveal' : vr.phase === 'results' ? ' · Results' : ' · Balloting') : '';
+    document.getElementById('phaseVal').textContent = (voting ? 'Voting' : 'Open Play') + sub;
+
+    // active card highlight
+    document.getElementById('mainCard').classList.toggle('active', !voting);
+    document.getElementById('voteCard').classList.toggle('active', voting);
+
+    // main timer
+    var tRec = read(K.timer), mRem = remOf(tRec, mainDur());
+    var mc = document.getElementById('mainClock');
+    mc.textContent = fmt(mRem);
+    mc.className = 'clock' + (mRem <= 0 ? ' done' : mRem <= 120 ? ' warn' : '');
+    var mRun = !!(tRec && tRec.running && mRem > 0);
+    document.getElementById('mainToggle').textContent = mRun ? 'Pause' : (mRem < mainDur() ? 'Resume' : 'Start');
+    document.getElementById('mainState').textContent = mRun ? 'running' : 'paused';
+
+    // vote timer
+    var vRem = remOf(vr, voteDur());
+    var vc = document.getElementById('voteClock');
+    vc.textContent = fmt(vRem);
+    vc.className = 'clock' + (vRem <= 0 ? ' done' : vRem <= 30 ? ' warn' : '');
+    var vRun = !!(vr.running && vRem > 0);
+    document.getElementById('voteToggle').textContent = vRun ? 'Pause' : (vRem < voteDur() ? 'Resume' : 'Start');
+    document.getElementById('voteState').textContent = vRun ? 'running' : 'paused';
+
+    // phase buttons enablement
+    document.getElementById('btnResults').disabled = !voting;
+    document.getElementById('btnReveal').disabled = !voting;
+    document.getElementById('btnBackVoting').disabled = !voting;
+    document.getElementById('btnReturn').disabled = !voting;
+
+    // live tally + seat presence
+    renderTally();
+    renderSeats();
+
+    // roster / manifest (effective deaths, with the cause shown)
+    var g = gen(), gmSet = {}; gmDead().forEach(function (i) { gmSet[i] = true; });
+    var deadCount = 0, els = document.getElementById('roster').children;
+    for (var i = 0; i < els.length; i++) {
+      var s = readSeat(i), selfDead = !!(s && s.dead === g), isDead = gmSet[i] || selfDead;
+      if (isDead) deadCount++;
+      els[i].classList.toggle('dead', isDead);
+      els[i].querySelector('.st').textContent = isDead ? 'Lost' : 'Alive';
+      els[i].querySelector('.r').textContent = isDead
+        ? (selfDead && !gmSet[i] ? 'Reported killed' : 'Thrown from the train')
+        : (roster[i] ? (roster[i].role || '') : '');
+    }
+    document.getElementById('aliveN').textContent = String(N - deadCount);
+    document.getElementById('deadN').textContent = String(deadCount);
+  }
+
+  // ---- wire up controls -----------------------------------------------------
+  function wire() {
+    document.getElementById('btnCallVote').addEventListener('click', function () { callVoteManual(); render(); });
+    document.getElementById('btnReturn').addEventListener('click', function () { returnToOpen(); render(); });
+    document.getElementById('btnResults').addEventListener('click', function () { setVotePhase('results'); render(); });
+    document.getElementById('btnReveal').addEventListener('click', function () { revealNow(); render(); });
+    document.getElementById('btnBackVoting').addEventListener('click', function () { setVotePhase('voting'); render(); });
+
+    document.getElementById('mainToggle').addEventListener('click', function () {
+      var t = read(K.timer); if (t && t.running) mainPause(); else mainStart(); render();
+    });
+    document.getElementById('mainRestart').addEventListener('click', function () { mainRestart(); render(); });
+    document.getElementById('voteToggle').addEventListener('click', function () {
+      var v = read(K.vote); if (v && v.running) votePause(); else voteStart(); render();
+    });
+    document.getElementById('voteRestart').addEventListener('click', function () { voteRestart(); render(); });
+
+    document.querySelectorAll('[data-madj]').forEach(function (b) { b.addEventListener('click', function () { mainAdjust(parseInt(b.dataset.madj, 10)); render(); }); });
+    document.querySelectorAll('[data-vadj]').forEach(function (b) { b.addEventListener('click', function () { voteAdjust(parseInt(b.dataset.vadj, 10)); render(); }); });
+    document.querySelectorAll('[data-mdur]').forEach(function (b) { b.addEventListener('click', function () { setMainDur(parseInt(b.dataset.mdur, 10)); render(); }); });
+    document.querySelectorAll('[data-vdur]').forEach(function (b) { b.addEventListener('click', function () { setVoteDur(parseInt(b.dataset.vdur, 10)); render(); }); });
+
+    document.getElementById('btnNewGame').addEventListener('click', function () {
+      if (confirm('Start a new game? This resets the timers, the vote, and brings everyone back alive.')) { newGame(); render(); }
+    });
+  }
+
+  wire();
+  loadGame();
+  loadSeats();
+  setInterval(function () { watchTrigger(); checkEarlyClose(); tickReveal(); render(); }, 200);
+})();
+</script>
+</body>
+</html>

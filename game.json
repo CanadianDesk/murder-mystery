@@ -1,0 +1,31 @@
+{
+  "train": {
+    "name": "The Midnight Express",
+    "car": "Car No. IX"
+  },
+  "buzzer": {
+    "title": "Porter's Call"
+  },
+  "meeting": {
+    "cooldownSeconds": 90
+  },
+  "map": "assets/floorplan.svg",
+  "characters": [
+    { "name": "Col. Reginald Ashworth", "role": "Retired Officer" },
+    { "name": "The Contessa von Halle", "role": "Continental Widow" },
+    { "name": "Dr. Silas Mortimer", "role": "Ship’s Physician" },
+    { "name": "Miss Evelyn Carr", "role": "Stage Actress" },
+    { "name": "Mr. Harlan Vane", "role": "Financier" },
+    { "name": "Lady Prudence Ashworth", "role": "Dowager" },
+    { "name": "Capt. Thomas Blackwood", "role": "Sea Captain" },
+    { "name": "Mme. Colette Dubois", "role": "Couturière" },
+    { "name": "Rev. Josiah Penhallow", "role": "Clergyman" },
+    { "name": "Miss Ada Sinclair", "role": "Heiress" },
+    { "name": "Mr. Vincent Crane", "role": "Novelist" },
+    { "name": "Signor Marco Ferretti", "role": "Opera Tenor" },
+    { "name": "Prof. Edmund Gray", "role": "Antiquarian" },
+    { "name": "Nurse Agnes Holloway", "role": "Private Nurse" },
+    { "name": "Mr. Cornelius Dodd", "role": "Conductor" },
+    { "name": "Miss Ruby Lamarr", "role": "Jazz Singer" }
+  ]
+}

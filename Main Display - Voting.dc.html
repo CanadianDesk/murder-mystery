@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./dc-net.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+  html,body{height:100%;margin:0;background:#d9cba8;overflow:hidden}
+  a{color:#6a3b28}a:hover{color:#8a3324}
+  @keyframes ntFade{from{opacity:0}to{opacity:1}}
+  @keyframes ntRise{from{opacity:0;transform:translateY(28px) scale(.94)}to{opacity:1;transform:none}}
+  @keyframes ntSlash{from{transform:rotate(-3deg) scaleX(0)}to{transform:rotate(-3deg) scaleX(1)}}
+  @keyframes ntDrip{0%{transform:scaleY(0);opacity:0}25%{opacity:1}100%{transform:scaleY(1);opacity:1}}
+</style>
+</helmet>
+<div style="position:relative;width:100vw;height:100vh;overflow:hidden;font-family:'Cinzel',serif;color:#3a2817;background:linear-gradient(150deg,#efe4c8 0%,#e7d8b4 42%,#dccca4 100%)">
+
+  <!-- tea stains / foxing -->
+  <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;background:
+      radial-gradient(38vmax 30vmax at 10% 16%, rgba(120,84,44,.20), rgba(120,84,44,0) 60%),
+      radial-gradient(30vmax 34vmax at 90% 84%, rgba(105,68,34,.24), rgba(105,68,34,0) 62%),
+      radial-gradient(24vmax 22vmax at 80% 10%, rgba(140,100,52,.16), rgba(140,100,52,0) 60%),
+      radial-gradient(26vmax 26vmax at 20% 90%, rgba(96,62,30,.18), rgba(96,62,30,0) 62%)"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;background:radial-gradient(115% 105% at 50% 48%, rgba(120,84,44,0) 52%, rgba(88,56,26,.42) 100%)"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.14;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22140%22 height=%22140%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22/></filter><rect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/></svg>')"></div>
+
+  <!-- deco frame -->
+  <div style="position:absolute;inset:34px;border:2px solid #4a3320;pointer-events:none"></div>
+  <div style="position:absolute;inset:41px;border:1px solid #6b5238;pointer-events:none"></div>
+  <div style="position:absolute;top:27px;left:27px;width:28px;height:28px;border-top:3px solid #3a2817;border-left:3px solid #3a2817;pointer-events:none"></div>
+  <div style="position:absolute;top:27px;right:27px;width:28px;height:28px;border-top:3px solid #3a2817;border-right:3px solid #3a2817;pointer-events:none"></div>
+  <div style="position:absolute;bottom:27px;left:27px;width:28px;height:28px;border-bottom:3px solid #3a2817;border-left:3px solid #3a2817;pointer-events:none"></div>
+  <div style="position:absolute;bottom:27px;right:27px;width:28px;height:28px;border-bottom:3px solid #3a2817;border-right:3px solid #3a2817;pointer-events:none"></div>
+
+  <!-- content -->
+  <div style="position:relative;z-index:2;height:100%;display:flex;flex-direction:column;padding:44px 50px;box-sizing:border-box">
+
+    <!-- masthead -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:9px;flex:none">
+      <div style="display:flex;align-items:center;gap:15px;width:min(560px,60vw);color:#4a3320">
+        <div style="flex:1;height:2px;background:#4a3320"></div>
+        <div style="width:9px;height:9px;background:#4a3320;transform:rotate(45deg)"></div>
+        <div style="flex:1;height:2px;background:#4a3320"></div>
+      </div>
+      <h1 style="margin:0;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:clamp(18px,2.3vw,34px);letter-spacing:.1em;color:#2e2013;text-transform:uppercase">{{ trainName }}</h1>
+    </div>
+
+    <!-- who triggered this meeting -->
+    <sc-if value="{{ showTrigger }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:none;margin-top:8px;text-align:center;animation:ntFade .5s ease both">
+        <span style="font-family:'Special Elite',monospace;font-size:clamp(11px,1.35vw,17px);letter-spacing:.26em;color:{{ triggerColor }};text-transform:uppercase">{{ triggerText }}</span>
+      </div>
+    </sc-if>
+
+    <!-- main row -->
+    <div style="flex:1;display:flex;gap:{{ rowGap }};min-height:0;margin-top:16px;transition:gap .6s ease">
+
+      <!-- LEFT: floorplan -->
+      <div style="flex:0 0 {{ planBasis }};display:flex;flex-direction:column;min-height:0;overflow:hidden;opacity:{{ planOpacity }};transform:translateX({{ planShift }});transition:flex-basis .8s ease,opacity .6s ease,transform .8s ease">
+        <div style="position:relative;flex:1;min-height:0;border:1px solid #6b5238;padding:16px 20px;background:rgba(255,250,235,.28)">
+          <img src="assets/floorplan.svg" alt="Floor plan of the train, three decks" style="width:100%;height:100%;object-fit:contain;filter:sepia(.4) saturate(.85) contrast(1.05);mix-blend-mode:multiply;opacity:.92" />
+        </div>
+      </div>
+
+      <!-- vertical divider -->
+      <div style="flex:none;width:{{ divW }};background:linear-gradient(180deg,transparent,#6b5238 12%,#6b5238 88%,transparent);opacity:{{ dividerOpacity }};transition:width .8s ease,opacity .5s ease"></div>
+
+      <!-- RIGHT: voting -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+
+        <!-- vote header + timer -->
+        <div style="flex:none;text-align:center;overflow:hidden;max-height:{{ headerMaxH }};opacity:{{ headerOpacity }};transition:max-height .7s ease,opacity .5s ease">
+          <h2 style="margin:0 0 8px;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:clamp(22px,2.6vw,44px);letter-spacing:.05em;color:#2e2013">Cast Your Vote</h2>
+          <div style="display:flex;align-items:baseline;justify-content:center;gap:16px">
+            <span style="font-family:'Special Elite',monospace;font-size:13px;letter-spacing:.3em;color:{{ statusColor }};text-transform:uppercase">{{ statusLine }}</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;line-height:.9;font-family:'Cinzel',serif;font-weight:700;font-feature-settings:'tnum';margin-top:6px;color:{{ numColor }};transition:color .6s ease">
+            <sc-for list="{{ timeCells }}" as="cell" hint-placeholder-count="5">
+              <span style="display:inline-block;width:.64em;text-align:center;font-size:clamp(48px,5.4vw,104px)">{{ cell.ch }}</span>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- manifest heading -->
+        <div style="flex:none;display:flex;align-items:center;gap:16px;margin:10px 0 10px;color:#4a3320">
+          <div style="width:8px;height:8px;background:#4a3320;transform:rotate(45deg);flex:none"></div>
+          <div style="flex:1;height:1.5px;background:#6b5238"></div>
+          <span style="flex:none;max-width:100%;font-family:'Special Elite',monospace;font-size:13px;letter-spacing:.24em;color:#6a4a2c;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ manifestLabel }}</span>
+          <div style="flex:1;height:1.5px;background:#6b5238"></div>
+          <div style="width:8px;height:8px;background:#4a3320;transform:rotate(45deg);flex:none"></div>
+        </div>
+
+        <!-- roster -->
+        <div style="flex:1;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-auto-rows:1fr;column-gap:26px;row-gap:2px">
+          <sc-for list="{{ players }}" as="p" hint-placeholder-count="16">
+            <div style="position:relative;display:flex;align-items:center;gap:11px;padding:0 8px;border-bottom:1px dotted rgba(107,82,56,.35);background:{{ p.rowBg }};transition:background .5s ease">
+              <span style="flex:none;width:26px;text-align:right;font-family:'Cinzel',serif;font-weight:600;font-size:12px;color:#9c7f52;opacity:{{ p.dim }}">{{ p.roman }}</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.03;opacity:{{ p.dim }}">
+                <span style="font-family:'Cinzel',serif;font-weight:600;font-size:clamp(12px,1.05vw,17px);color:{{ p.nameColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+                <span style="font-family:'Special Elite',monospace;font-size:9.5px;letter-spacing:.12em;color:#8a6c44;text-transform:uppercase">{{ p.title }}</span>
+              </div>
+              <!-- vote tally (results) -->
+              <div style="flex:none;display:flex;align-items:center;gap:10px;width:{{ voteW }};opacity:{{ p.voteOpacity }};overflow:hidden;transition:opacity .5s ease {{ p.delay }},width .6s ease">
+                <div style="position:relative;flex:1;height:9px;background:rgba(107,82,56,.20);border:1px solid rgba(107,82,56,.3)">
+                  <div style="position:absolute;top:0;bottom:0;left:0;width:{{ p.barPct }};background:{{ p.barColor }};transition:width .9s ease {{ p.delay }}"></div>
+                </div>
+                <span style="flex:none;width:1.3em;text-align:right;font-family:'Cinzel',serif;font-weight:700;font-size:clamp(15px,1.25vw,22px);color:{{ p.countColor }}">{{ p.voteCount }}</span>
+                <span style="flex:none;font-family:'Cinzel',serif;font-weight:700;font-size:9px;letter-spacing:.16em;color:#f3ead2;background:#7c1f14;padding:3px 6px;text-transform:uppercase;white-space:nowrap;opacity:{{ p.accusedOpacity }};transition:opacity .4s ease {{ p.delay }}">Accused</span>
+              </div>
+              <!-- blood strike -->
+              <div style="position:absolute;left:32px;right:6px;top:48%;height:3px;background:#7c1f14;border-radius:2px;transform:rotate(-2.2deg);box-shadow:0 0 3px rgba(124,31,20,.5);opacity:{{ p.strike }}"></div>
+              <div style="position:absolute;left:46px;top:70%;width:5px;height:8px;background:#7c1f14;border-radius:50% 50% 60% 60%;opacity:{{ p.strike }}"></div>
+              <div style="position:absolute;left:70%;top:74%;width:4px;height:6px;background:#7c1f14;border-radius:50% 50% 60% 60%;opacity:{{ p.strike }}"></div>
+              <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:18px;color:#7c1f14;opacity:{{ p.strike }}">✕</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- skip / abstain (results) -->
+        <sc-if value="{{ resultsOn }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:none;display:flex;align-items:center;gap:11px;padding:12px 8px 2px;margin-top:8px;border-top:2px solid #6b5238">
+            <span style="flex:none;width:26px;text-align:right;font-family:'Cinzel',serif;font-weight:600;font-size:12px;color:#9c7f52">—</span>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.03">
+              <span style="font-family:'Cinzel',serif;font-weight:600;font-size:clamp(12px,1.05vw,17px);color:#3a2817">Skip · Abstain</span>
+              <span style="font-family:'Special Elite',monospace;font-size:9.5px;letter-spacing:.12em;color:#8a6c44;text-transform:uppercase">No Accusation Made</span>
+            </div>
+            <div style="flex:none;display:flex;align-items:center;gap:10px;width:{{ voteW }}">
+              <div style="position:relative;flex:1;height:9px;background:rgba(107,82,56,.20);border:1px solid rgba(107,82,56,.3)">
+                <div style="position:absolute;top:0;bottom:0;left:0;width:{{ skipBarPct }};background:#6b5238;transition:width .9s ease .35s"></div>
+              </div>
+              <span style="flex:none;width:1.3em;text-align:right;font-family:'Cinzel',serif;font-weight:700;font-size:clamp(15px,1.25vw,22px);color:#6a4a2c">{{ skipCount }}</span>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- REVEAL / ELIMINATION overlay -->
+  <sc-if value="{{ revealOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:34px;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 8vw;box-sizing:border-box;background:linear-gradient(150deg,#efe4c8 0%,#e7d8b4 42%,#dccca4 100%);animation:ntFade .7s ease both">
+
+      <!-- foxing on overlay for depth -->
+      <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;background:radial-gradient(30vmax 30vmax at 82% 84%, rgba(105,68,34,.22), rgba(105,68,34,0) 62%),radial-gradient(28vmax 26vmax at 16% 14%, rgba(120,84,44,.18), rgba(120,84,44,0) 60%)"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;background:radial-gradient(115% 105% at 50% 48%, rgba(120,84,44,0) 55%, rgba(88,56,26,.4) 100%)"></div>
+
+      <!-- ACCUSED -->
+      <sc-if value="{{ revealAccused }}" hint-placeholder-val="{{ true }}">
+        <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:26px">
+          <p style="margin:0;font-family:'Special Elite',monospace;font-size:clamp(13px,1.3vw,20px);letter-spacing:.42em;color:#7c1f14;text-transform:uppercase;animation:ntRise .6s ease both">By Vote of the Passengers</p>
+          <div style="position:relative;display:inline-block;max-width:84vw;padding:6px 12px;animation:ntRise .8s cubic-bezier(.2,.7,.2,1) .12s both">
+            <span style="display:block;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:{{ accusedNameSize }};line-height:1.02;letter-spacing:.01em;color:#2e2013;text-wrap:balance">{{ accusedName }}</span>
+            <!-- blood slash -->
+            <div style="position:absolute;left:-2%;right:-2%;top:54%;height:clamp(8px,0.9vw,16px);background:linear-gradient(90deg,#5e150d,#7c1f14 20%,#8f2416 80%,#5e150d);border-radius:6px;transform-origin:left center;transform:rotate(-3deg) scaleX(0);box-shadow:0 2px 10px rgba(124,31,20,.55);animation:ntSlash .55s cubic-bezier(.55,0,.25,1) 1s both"></div>
+            <!-- drips -->
+            <div style="position:absolute;left:16%;top:60%;width:clamp(6px,.5vw,9px);height:clamp(22px,2.4vw,44px);background:linear-gradient(#7c1f14,#5e150d);border-radius:0 0 60% 60%;transform-origin:top;transform:scaleY(0);animation:ntDrip .8s ease 1.45s both"></div>
+            <div style="position:absolute;left:49%;top:61%;width:clamp(5px,.42vw,8px);height:clamp(16px,1.8vw,32px);background:linear-gradient(#7c1f14,#5e150d);border-radius:0 0 60% 60%;transform-origin:top;transform:scaleY(0);animation:ntDrip .75s ease 1.6s both"></div>
+            <div style="position:absolute;left:80%;top:59%;width:clamp(5px,.46vw,8px);height:clamp(20px,2.1vw,38px);background:linear-gradient(#7c1f14,#5e150d);border-radius:0 0 60% 60%;transform-origin:top;transform:scaleY(0);animation:ntDrip .8s ease 1.55s both"></div>
+          </div>
+          <p style="margin:0;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(15px,1.5vw,26px);letter-spacing:.14em;color:#6a4a2c;text-transform:uppercase;animation:ntFade 1s ease 1.9s both">Thrown off the train</p>
+        </div>
+      </sc-if>
+
+      <!-- EVERYONE SURVIVES -->
+      <sc-if value="{{ revealSurvive }}" hint-placeholder-val="{{ false }}">
+        <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:22px">
+          <p style="margin:0;font-family:'Special Elite',monospace;font-size:clamp(13px,1.3vw,20px);letter-spacing:.42em;color:#6a4a2c;text-transform:uppercase;animation:ntRise .6s ease both">The Vote Is Split</p>
+          <h2 style="margin:0;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:clamp(48px,6.6vw,128px);line-height:1;letter-spacing:.02em;color:#2e2013;animation:ntRise .8s cubic-bezier(.2,.7,.2,1) .12s both">Everyone Survives</h2>
+          <p style="margin:0;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(15px,1.5vw,26px);letter-spacing:.14em;color:#6a4a2c;text-transform:uppercase;animation:ntFade 1s ease .9s both">No accusation carries · the Midnight Express rolls on</p>
+        </div>
+      </sc-if>
+
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1920, &quot;height&quot;: 1080 },
+  &quot;previewPhase&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;auto&quot;, &quot;options&quot;: [&quot;auto&quot;, &quot;voting&quot;, &quot;results&quot;, &quot;reveal&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Voting&quot; },
+  &quot;voteDurationSeconds&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 120, &quot;min&quot;: 30, &quot;max&quot;: 300, &quot;step&quot;: 15, &quot;unit&quot;: &quot;sec&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Voting&quot; },
+  &quot;revealDelaySeconds&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 6, &quot;min&quot;: 2, &quot;max&quot;: 20, &quot;step&quot;: 1, &quot;unit&quot;: &quot;sec&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Voting&quot; },
+  &quot;inkColor&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#3a2817&quot;, &quot;options&quot;: [&quot;#3a2817&quot;, &quot;#2e2013&quot;, &quot;#4a2c1a&quot;, &quot;#7c2b1e&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Style&quot; }
+}">
+const VKEY = 'nighttrain_vote_v1';
+const PKEY = 'nighttrain_players_v1';
+const MKEY = 'nighttrain_meeting_v1'; // { source:'buzzer'|'body'|'manual', reporter }
+
+// Fallback roster + train name, used only until game.json loads (or if it fails).
+const DEFAULT_TRAIN = 'The Midnight Express';
+const DEFAULT_ROSTER = [
+  ['Col. Reginald Ashworth', 'Retired Officer'],
+  ['The Contessa von Halle', 'Continental Widow'],
+  ['Dr. Silas Mortimer', 'Ship\u2019s Physician'],
+  ['Miss Evelyn Carr', 'Stage Actress'],
+  ['Mr. Harlan Vane', 'Financier'],
+  ['Lady Prudence Ashworth', 'Dowager'],
+  ['Capt. Thomas Blackwood', 'Sea Captain'],
+  ['Mme. Colette Dubois', 'Couturi\u00e8re'],
+  ['Rev. Josiah Penhallow', 'Clergyman'],
+  ['Miss Ada Sinclair', 'Heiress'],
+  ['Mr. Vincent Crane', 'Novelist'],
+  ['Signor Marco Ferretti', 'Opera Tenor'],
+  ['Prof. Edmund Gray', 'Antiquarian'],
+  ['Nurse Agnes Holloway', 'Private Nurse'],
+  ['Mr. Cornelius Dodd', 'Conductor'],
+  ['Miss Ruby Lamarr', 'Jazz Singer'],
+];
+// Neutral defaults: nobody dead, no votes cast. The Game Master's shared state
+// overrides these the moment a game is running.
+const DEFAULT_DEAD = [];
+const DEFAULT_SKIP = 0;
+
+function roman(n) {
+  const map = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let out = '';
+  for (const [v, s] of map) while (n >= v) { out += s; n -= v; }
+  return out;
+}
+
+class Component extends DCLogic {
+  state = { remaining: 120, running: false, dead: DEFAULT_DEAD.slice(), votes: null, skip: null, sharedPhase: null, phase: 'voting', roster: DEFAULT_ROSTER, trainName: DEFAULT_TRAIN, triggerSource: null, triggerReporter: null };
+
+  total() { return this.props.voteDurationSeconds ?? 120; }
+
+  componentDidMount() {
+    this.loadGame();
+    this.read();
+    this.ticker = setInterval(() => this.read(), 200);
+  }
+
+  loadGame() {
+    // Pull the train name + roster from the shared game.json. Falls back to the
+    // built-in defaults if it can't be reached, so the screen always renders.
+    fetch('game.json').then(r => r.ok ? r.json() : null).then(g => {
+      if (!g) return;
+      const roster = Array.isArray(g.characters) && g.characters.length
+        ? g.characters.map(c => [c.name || '', c.role || '']) : DEFAULT_ROSTER;
+      this.setState({ roster, trainName: (g.train && g.train.name) || DEFAULT_TRAIN });
+    }).catch(() => {});
+  }
+  componentWillUnmount() { clearInterval(this.ticker); }
+
+  read() {
+    // vote timer, round & phase — follows the Game Master's shared state
+    let rem = this.total(), running = false, sharedPhase = null, round = 0;
+    try {
+      const raw = localStorage.getItem(VKEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.running && d.endTime) { rem = Math.max(0, (d.endTime - Date.now()) / 1000); running = rem > 0; }
+        else if (typeof d.remaining === 'number') { rem = d.remaining; running = false; }
+        if (typeof d.phase === 'string') sharedPhase = d.phase;
+        if (typeof d.round === 'number') round = d.round;
+      }
+    } catch (e) {}
+
+    // player deaths — GM-declared (players.dead) plus self-declared (seat.dead
+    // === current generation). A new game bumps the generation to retire the latter.
+    let deadArr = [], gen = 0;
+    try {
+      const raw = localStorage.getItem(PKEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (Array.isArray(d.dead)) deadArr = d.dead;
+        if (typeof d.gen === 'number') gen = d.gen;
+      }
+    } catch (e) {}
+
+    // tally live player ballots: each player owns nighttrain_seat_<i>_v1, and a
+    // vote only counts if it's for the current round (a new round retires old ballots).
+    const N = (this.state.roster || DEFAULT_ROSTER).length;
+    const deadSet = new Set(deadArr);
+    const votes = new Array(N).fill(0);
+    let skip = 0;
+    for (let i = 0; i < N; i++) {
+      let s = null;
+      try { const raw = localStorage.getItem('nighttrain_seat_' + i + '_v1'); if (raw) s = JSON.parse(raw); } catch (e) {}
+      if (s && s.dead === gen) deadSet.add(i);  // self-declared death
+      if (deadSet.has(i)) continue;             // the dead cast no ballot
+      if (!s || !s.joined || !s.vote || s.vote.round !== round) continue;
+      if (s.vote.target === -1) skip++;
+      else if (s.vote.target >= 0 && s.vote.target < N) votes[s.vote.target]++;
+    }
+    const dead = Array.from(deadSet);
+
+    // what triggered this meeting (for the "reported by …" banner)
+    let triggerSource = null, triggerReporter = null;
+    try {
+      const m = JSON.parse(localStorage.getItem(MKEY) || 'null');
+      if (m) { triggerSource = m.source || null; triggerReporter = (typeof m.reporter === 'number') ? m.reporter : null; }
+    } catch (e) {}
+
+    // resolve current phase (voting → results → reveal)
+    const phase = this.computePhase(rem, sharedPhase);
+
+    const shown = Math.ceil(rem);
+    const key = shown + '|' + running + '|' + dead.join(',') + '|' + phase + '|' + votes.join(',') + '|' + skip + '|' + triggerSource + '|' + triggerReporter;
+    if (key !== this._key) {
+      this._key = key;
+      this.setState({ remaining: rem, running, dead, votes, skip, sharedPhase, phase, triggerSource, triggerReporter });
+    }
+  }
+
+  computePhase(rem, sharedPhase) {
+    const forced = this.props.previewPhase || 'auto';
+    if (forced === 'voting' || forced === 'results' || forced === 'reveal') return forced;
+    // The Game Master drives the whole sequence, including the hand-off to reveal
+    // (which is when the condemned passenger is thrown off), so we just follow it.
+    if (sharedPhase === 'reveal') return 'reveal';
+    if (sharedPhase === 'results' || rem <= 0) return 'results';
+    return 'voting';
+  }
+
+  fmt(sec) {
+    const t = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(t / 60), s = t % 60;
+    return (String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'))
+      .split('').map(ch => ({ ch }));
+  }
+
+  renderVals() {
+    const rem = this.state.remaining;
+    const ink = this.props.inkColor || '#3a2817';
+    const done = rem <= 0;
+    const warn = !done && rem <= 30;
+    const ROSTER = this.state.roster || DEFAULT_ROSTER;
+    const N = ROSTER.length;
+    const deadSet = new Set(this.state.dead);
+    const aliveCount = N - deadSet.size;
+
+    // phase
+    const phase = this.state.phase || 'voting';
+    const revealOn = phase === 'reveal';
+    const resultsOn = phase === 'results' || revealOn;
+
+    let numColor = ink, statusColor = '#6a4a2c', statusLine;
+    if (done) { numColor = '#7c2b1e'; statusColor = '#7c2b1e'; statusLine = 'Ballots Closed'; }
+    else if (warn) { numColor = '#8a3324'; statusColor = '#8a3324'; statusLine = 'Final Seconds to Vote'; }
+    else { statusLine = 'Deliberations Close In'; }
+
+    // tally & outcome
+    const votes = this.state.votes || new Array(N).fill(0);
+    const skip = (this.state.skip == null) ? DEFAULT_SKIP : this.state.skip;
+    let accusedIdx = -1, best = 0, bestCount = 0;
+    votes.forEach((v, i) => {
+      if (deadSet.has(i)) return;
+      if (v > best) { best = v; accusedIdx = i; bestCount = 1; }
+      else if (v === best && v > 0) { bestCount++; }
+    });
+    const maxAll = Math.max(1, skip, ...votes);
+    // tie among players, no votes at all, or skip meets/beats the top → nobody eliminated
+    const survive = best <= 0 || bestCount > 1 || skip >= best;
+    const accusedName = (!survive && accusedIdx >= 0) ? ROSTER[accusedIdx][0] : '';
+    // scale the display size down for longer names so they never spill the frame
+    const nameLen = accusedName.length;
+    const accusedNameSize = nameLen <= 14 ? 'clamp(52px,7.4vw,144px)'
+      : nameLen <= 20 ? 'clamp(44px,6vw,116px)'
+      : 'clamp(38px,5vw,96px)';
+
+    const players = ROSTER.map((r, i) => {
+      const isDead = deadSet.has(i);
+      const c = votes[i] || 0;
+      const isAccused = resultsOn && i === accusedIdx;
+      return {
+        roman: roman(i + 1),
+        name: r[0],
+        title: isDead ? 'Deceased' : r[1],
+        nameColor: isAccused ? '#7c1f14' : (isDead ? '#6b4a3a' : ink),
+        dim: isDead ? 0.55 : 1,
+        strike: isDead ? 1 : 0,
+        voteCount: isDead ? '\u2014' : String(c),
+        barPct: (resultsOn && !isDead) ? (c / maxAll * 100).toFixed(1) + '%' : '0%',
+        barColor: isAccused ? '#7c1f14' : '#8a6c44',
+        countColor: isAccused ? '#7c1f14' : (c > 0 ? ink : '#a08a63'),
+        voteOpacity: resultsOn ? (isDead ? 0.4 : 1) : 0,
+        accusedOpacity: isAccused ? 1 : 0,
+        rowBg: isAccused ? 'rgba(124,31,20,.09)' : 'transparent',
+        delay: (0.15 + i * 0.045).toFixed(2) + 's',
+      };
+    });
+
+    // "reported by …" banner — only while the passengers are actually voting
+    const tSource = this.state.triggerSource, tRep = this.state.triggerReporter;
+    let triggerText = '', triggerColor = '#6a4a2c', hasTrigger = false;
+    if (tSource === 'body' && tRep != null && ROSTER[tRep]) {
+      triggerText = '☠️  Dead Body Reported · ' + ROSTER[tRep][0];
+      triggerColor = '#7c1f14'; hasTrigger = true;
+    } else if (tSource === 'buzzer') {
+      triggerText = 'The Porter’s Bell Was Rung'; hasTrigger = true;
+    }
+    const showTrigger = hasTrigger && !resultsOn;
+
+    return {
+      trainName: this.state.trainName || DEFAULT_TRAIN,
+      showTrigger, triggerText, triggerColor,
+      timeCells: this.fmt(rem),
+      numColor, statusColor, statusLine,
+      players,
+      resultsOn,
+      revealOn,
+      revealSurvive: revealOn && survive,
+      revealAccused: revealOn && !survive,
+      accusedName,
+      accusedNameSize,
+      manifestLabel: resultsOn ? 'The Verdict' : ('The Manifest \u00b7 ' + aliveCount + ' Living'),
+      // phase-driven layout
+      planBasis: resultsOn ? '0%' : '44%',
+      planOpacity: resultsOn ? 0 : 1,
+      planShift: resultsOn ? '-40px' : '0px',
+      divW: resultsOn ? '0px' : '2px',
+      dividerOpacity: resultsOn ? 0 : 1,
+      rowGap: resultsOn ? '0px' : '38px',
+      headerMaxH: resultsOn ? '0px' : '360px',
+      headerOpacity: resultsOn ? 0 : 1,
+      voteW: resultsOn ? 'min(380px,46%)' : '0px',
+      skipCount: String(skip),
+      skipBarPct: (skip / maxAll * 100).toFixed(1) + '%',
+    };
+  }
+}
+</script>
+</body>
+</html>

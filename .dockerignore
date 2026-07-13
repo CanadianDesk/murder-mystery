@@ -1,0 +1,9 @@
+.git
+.gitignore
+node_modules
+server/node_modules
+npm-debug.log
+.DS_Store
+.thumbnail
+scratchpad
+*.md
