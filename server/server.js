@@ -23,7 +23,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 // Simple gate for the Game Master screen. Not real security — just keeps guests
 // from wandering into the controls. Change it in docker-compose.yml.
-const GM_PASSWORD = process.env.GM_PASSWORD || 'midnight';
+const GM_PASSWORD = process.env.GM_PASSWORD || 'meow24';
 
 // Everything the screens share lives under this namespace. The client shim only
 // forwards keys with this prefix, so the GM screen can invent new keys later
@@ -89,6 +89,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPRSTUVWXYZ'; // no I/O/Q — unambiguous whe
 const CODE_LEN = 4;
 
 let characters = [];       // [{ name, role }] from game.json
+let trainName = 'The Midnight Express'; // from game.json train.name
 let codeToSeat = new Map(); // 'WXYZ' -> index
 let seatToCode = [];        // index -> 'WXYZ'
 
@@ -97,6 +98,7 @@ function loadCharacters() {
     const raw = fs.readFileSync(path.join(STATIC_DIR, 'game.json'), 'utf8');
     const g = JSON.parse(raw);
     characters = Array.isArray(g.characters) ? g.characters : [];
+    if (g.train && g.train.name) trainName = g.train.name;
   } catch (e) {
     console.error('[seats] could not read game.json:', e.message);
     characters = [];
@@ -346,9 +348,10 @@ for (const [route, file] of Object.entries(SCREENS)) {
 }
 
 app.get('/', (_req, res) => {
+  const name = String(trainName).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   res.type('html').send(`<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Midnight Express — Screens</title>
+<title>${name} — Screens</title>
 <style>
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
     font-family:ui-serif,Georgia,serif;background:radial-gradient(120% 90% at 50% 30%,#2c1d10,#0f0905);color:#efe0bd}
@@ -360,7 +363,7 @@ app.get('/', (_req, res) => {
   a:hover{background:rgba(214,168,74,.1);color:#f3dd9b}
 </style>
 <div class="card">
-  <h1>The Midnight Express</h1>
+  <h1>${name}</h1>
   <p>Game screens</p>
   <a href="/display">Main Display · TV</a>
   <a href="/gm">Game Master · Phone</a>

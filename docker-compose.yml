@@ -17,7 +17,7 @@ services:
       REDIS_URL: "redis://redis:6379"
       STATIC_DIR: "/app"
       # Password for the Game Master screen (/gm). Change this before your party.
-      GM_PASSWORD: "midnight"
+      GM_PASSWORD: "meow24"
     ports:
       # host 8089 → container 8080. Loopback only — Cloudflare Tunnel connects here,
       # nothing else is exposed.

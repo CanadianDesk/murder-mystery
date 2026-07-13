@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>The Midnight Express — Game Master</title>
+<title>Game Master</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Special+Elite&display=swap" rel="stylesheet">
@@ -130,7 +130,7 @@
   <div id="gate">
     <div class="gatebox">
       <div class="gl">Game Master</div>
-      <div class="gs">The Midnight Express</div>
+      <div class="gs" id="gateTrain"></div>
       <input id="gpw" type="password" inputmode="text" autocomplete="off" placeholder="Password">
       <button id="gbtn">Enter</button>
       <div id="gerr" class="mono"></div>
@@ -142,7 +142,7 @@
   <header>
     <div class="brand">
       <h1>GAME MASTER</h1>
-      <div class="sub" id="trainName">The Midnight Express</div>
+      <div class="sub" id="trainName"></div>
     </div>
     <div class="conn"><span class="dot" id="dot"></span><span id="connTxt">connecting</span></div>
   </header>
@@ -516,11 +516,17 @@
       host.appendChild(d);
     });
   }
+  function setTrain(name) {
+    name = name || '';
+    document.getElementById('trainName').textContent = name;
+    var gt = document.getElementById('gateTrain'); if (gt) gt.textContent = name;
+    if (name) document.title = name + ' — Game Master';
+  }
   function loadGame() {
     fetch('game.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (g) {
       if (!g) { roster = fallbackRoster(); }
       else {
-        document.getElementById('trainName').textContent = (g.train && g.train.name) || 'The Midnight Express';
+        setTrain(g.train && g.train.name);
         roster = (Array.isArray(g.characters) && g.characters.length) ? g.characters : fallbackRoster();
         if (g.meeting && typeof g.meeting.cooldownSeconds === 'number') cooldownSecs = g.meeting.cooldownSeconds;
       }
