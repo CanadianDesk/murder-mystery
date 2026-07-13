@@ -4,28 +4,78 @@
     "car": "Car No. IX"
   },
   "buzzer": {
-    "title": "Porter's Call"
+    "title": "Porter's Call",
+    "soundSeconds": 3.5,
+    "soundRepeats": 3
   },
   "meeting": {
     "cooldownSeconds": 90
   },
   "map": "assets/floorplan.svg",
   "characters": [
-    { "name": "Col. Reginald Ashworth", "role": "Retired Officer" },
-    { "name": "The Contessa von Halle", "role": "Continental Widow" },
-    { "name": "Dr. Silas Mortimer", "role": "Ship’s Physician" },
-    { "name": "Miss Evelyn Carr", "role": "Stage Actress" },
-    { "name": "Mr. Harlan Vane", "role": "Financier" },
-    { "name": "Lady Prudence Ashworth", "role": "Dowager" },
-    { "name": "Capt. Thomas Blackwood", "role": "Sea Captain" },
-    { "name": "Mme. Colette Dubois", "role": "Couturière" },
-    { "name": "Rev. Josiah Penhallow", "role": "Clergyman" },
-    { "name": "Miss Ada Sinclair", "role": "Heiress" },
-    { "name": "Mr. Vincent Crane", "role": "Novelist" },
-    { "name": "Signor Marco Ferretti", "role": "Opera Tenor" },
-    { "name": "Prof. Edmund Gray", "role": "Antiquarian" },
-    { "name": "Nurse Agnes Holloway", "role": "Private Nurse" },
-    { "name": "Mr. Cornelius Dodd", "role": "Conductor" },
-    { "name": "Miss Ruby Lamarr", "role": "Jazz Singer" }
+    {
+      "name": "William Sinclair-Voss",
+      "role": "The Socialite"
+    },
+    {
+      "name": "Genevieve Thorne",
+      "role": "The Secretary"
+    },
+    {
+      "name": "Cordelia Vandergilt",
+      "role": "The Widow"
+    },
+    {
+      "name": "Dr. Julian Ashcroft",
+      "role": "The Doctor"
+    },
+    {
+      "name": "Josephine ‘Jo’ Bell",
+      "role": "The Columnist"
+    },
+    {
+      "name": "Mr. Grey",
+      "role": "The Businessman"
+    },
+    {
+      "name": "Salvatore ‘Sal’ Rizzo",
+      "role": "The Conductor"
+    },
+    {
+      "name": "Reggie Ashcome III",
+      "role": "The Heir"
+    },
+    {
+      "name": "Anastasia Volkov",
+      "role": "The Countess"
+    },
+    {
+      "name": "Sterling Fitzgerald",
+      "role": "The Veteran"
+    },
+    {
+      "name": "Dutch Malone",
+      "role": "The Bootlegger"
+    },
+    {
+      "name": "Delphine Marchetti",
+      "role": "The Singer"
+    },
+    {
+      "name": "Vivian ‘Ruby’ Laroux",
+      "role": "The Fading Star"
+    },
+    {
+      "name": "Birdie Sinclair",
+      "role": "The Rising Star"
+    },
+    {
+      "name": "Professor Edmund Blackwood",
+      "role": "The Archaeologist"
+    },
+    {
+      "name": "Evie Ashcome",
+      "role": "The Runaway Bride"
+    }
   ]
 }

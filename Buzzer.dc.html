@@ -74,6 +74,13 @@
     </sc-if>
   </div>
 
+  <!-- one-time prompt: tapping the iPad unlocks audio so remote reports can ring -->
+  <sc-if value="{{ soundLocked }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;left:0;right:0;bottom:14px;z-index:3;text-align:center;pointer-events:none">
+      <span style="font-family:'Special Elite',monospace;font-size:clamp(9px,1.7vw,12px);letter-spacing:.26em;color:#8a6c44;text-transform:uppercase;opacity:.85">&#128264;&nbsp; Tap to enable sound</span>
+    </div>
+  </sc-if>
+
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{
@@ -85,7 +92,7 @@ const CDKEY = 'nighttrain_cooldown_v1'; // { armedAt } — GM-set when a vote en
 
 class Component extends DCLogic {
   // status: 'ready' (live), 'cooldown' (re-arming), 'session' (a vote is on), 'ringing'
-  state = { status: 'ready', cooldownLeft: 0, ringing: false,
+  state = { status: 'ready', cooldownLeft: 0, ringing: false, audioReady: false,
             buzzerTitle: "Porter's Call", buzzerSub: 'The Midnight Express · Car No. IX' };
 
   componentDidMount() {
@@ -95,13 +102,65 @@ class Component extends DCLogic {
       const car = (g.train && g.train.car) || '';
       const title = (g.buzzer && g.buzzer.title) || "Porter's Call";
       this.setState({ buzzerTitle: title, buzzerSub: car ? (name + ' · ' + car) : name });
+      if (g.buzzer) {
+        if (typeof g.buzzer.soundSeconds === 'number') this._segMs = Math.round(g.buzzer.soundSeconds * 1000);
+        if (typeof g.buzzer.soundRepeats === 'number') this._segCount = g.buzzer.soundRepeats;
+      }
     }).catch(() => {});
+
+    // The bell: play the first few seconds of buzzer.mp3, a few times in a row,
+    // whenever a meeting is called by a buzzer press or body report (not manual).
+    this.audio = new Audio('buzzer.mp3');
+    this.audio.preload = 'auto';
+    this._segMs = 3500;   // ms of the clip played per repeat
+    this._segCount = 3;   // number of repeats
+    // iOS/Safari block audio until a user gesture. Prime it on the first tap so a
+    // REMOTE body report can ring the iPad without anyone touching it first.
+    this._unlock = () => {
+      try { const p = this.audio.play(); if (p && p.then) p.then(() => { this.audio.pause(); this.audio.currentTime = 0; }).catch(() => {}); } catch (e) {}
+      this.setState({ audioReady: true });
+      document.removeEventListener('pointerdown', this._unlock, true);
+      document.removeEventListener('touchstart', this._unlock, true);
+    };
+    document.addEventListener('pointerdown', this._unlock, true);
+    document.addEventListener('touchstart', this._unlock, true);
+
     this.sync();
     this.timer = setInterval(() => this.sync(), 200);
   }
-  componentWillUnmount() { clearInterval(this.timer); clearTimeout(this.ringTimer); }
+  componentWillUnmount() {
+    clearInterval(this.timer); clearTimeout(this.ringTimer); clearTimeout(this._segTimer);
+    document.removeEventListener('pointerdown', this._unlock, true);
+    document.removeEventListener('touchstart', this._unlock, true);
+  }
+
+  // Play the first `_segMs` of the clip, `_segCount` times back-to-back, cutting
+  // each repeat short with a timer (so we never wait for the full clip to end).
+  playSound() {
+    if (!this.audio) return;
+    this._segsLeft = this._segCount;
+    this.playSeg();
+  }
+  playSeg() {
+    clearTimeout(this._segTimer);
+    if (this._segsLeft <= 0) { try { this.audio.pause(); this.audio.currentTime = 0; } catch (e) {} return; }
+    this._segsLeft--;
+    try { this.audio.currentTime = 0; const p = this.audio.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    this._segTimer = setTimeout(() => this.playSeg(), this._segMs);
+  }
 
   sync() {
+    // Ring the bell on a fresh buzzer/body meeting (ignore manual GM calls).
+    try {
+      const m = JSON.parse(localStorage.getItem(MKEY) || 'null');
+      const sig = m ? (m.calledAt + '|' + m.source) : '';
+      if (this._meetSig === undefined) this._meetSig = sig; // baseline; don't ring on load
+      else if (sig !== this._meetSig) {
+        this._meetSig = sig;
+        if (m && (m.source === 'buzzer' || m.source === 'body')) this.playSound();
+      }
+    } catch (e) {}
+
     // A meeting in progress silences the cord; otherwise the GM's cooldown
     // (set when the last vote ended) governs when it's live again.
     let status = 'ready', left = 0;
@@ -186,6 +245,7 @@ class Component extends DCLogic {
     return {
       buzzerTitle: this.state.buzzerTitle,
       buzzerSub: this.state.buzzerSub,
+      soundLocked: !this.state.audioReady,
       locked: session || cooldown,       // bottom status block shows for both
       coolLabel: cooldown ? 'Bell Re-Arming' : 'Meeting In Session',
       showCoolTimer: cooldown,           // only the cooldown shows a countdown

@@ -1,5 +1,5 @@
 # The Midnight Express — home-server stack.
-# App is published on 127.0.0.1:8080 ONLY; point your Cloudflare Tunnel at it.
+# App is published on 127.0.0.1:8089 ONLY; point your Cloudflare Tunnel at it.
 services:
   redis:
     image: redis:7-alpine
@@ -19,8 +19,9 @@ services:
       # Password for the Game Master screen (/gm). Change this before your party.
       GM_PASSWORD: "midnight"
     ports:
-      # Bind to loopback only — Cloudflare Tunnel connects here, nothing else is exposed.
-      - "127.0.0.1:8080:8080"
+      # host 8089 → container 8080. Loopback only — Cloudflare Tunnel connects here,
+      # nothing else is exposed.
+      - "127.0.0.1:8089:8080"
     depends_on:
       - redis
 

@@ -337,14 +337,6 @@
     }
     return { round: round, counts: counts, skip: skip, joined: joined, voted: voted };
   }
-  // Who the vote condemns (or -1 for a split / no result).
-  function accusedIndex() {
-    var t = tally(), lead = -1, best = 0, ties = 0;
-    t.counts.forEach(function (c, i) { if (c > best) { best = c; lead = i; ties = 1; } else if (c === best && c > 0) ties++; });
-    if (best <= 0 || ties > 1 || t.skip >= best) return -1;
-    return lead;
-  }
-
   // ---- writes: main timer ---------------------------------------------------
   function mainStart() { var d = mainDur(); var r = remOf(read(K.timer), d) || d; write(K.timer, { running: true, endTime: now() + r * 1000, remaining: r, duration: d }); }
   function mainPause() { var d = mainDur(); write(K.timer, { running: false, remaining: remOf(read(K.timer), d), duration: d }); }
@@ -373,68 +365,41 @@
   }
   function setVoteDur(sec) { voteMerge({ running: false, remaining: sec, duration: sec }); }
   function setVotePhase(p) {
-    if (p === 'results') voteMerge({ phase: 'results', running: false, remaining: 0 });
+    // The server backfills resultsAt and drives results→reveal + the kill; the GM
+    // just declares the sub-phase. results starts a fresh reveal timer; going back
+    // to voting clears it.
+    if (p === 'results') voteMerge({ phase: 'results', running: false, remaining: 0, resultsAt: null });
+    else if (p === 'voting') voteMerge({ phase: 'voting', resultsAt: null });
     else voteMerge({ phase: p });
   }
   function nextRound() { return voteRound() + 1; }
 
-  // Results → reveal is GM-driven so the condemned passenger dies exactly on reveal.
-  var REVEAL_DELAY = 6000;
-  var _resultsSince = null, _killedRound = null;
-  function revealNow() {
-    var acc = accusedIndex();
-    if (acc >= 0 && _killedRound !== voteRound()) { addDead(acc); _killedRound = voteRound(); }
-    voteMerge({ phase: 'reveal' });
-  }
-  function tickReveal() {
-    if (phase() !== 'voting') { _resultsSince = null; return; }
-    var v = read(K.vote); if (!v) return;
-    if (v.phase === 'results') {
-      if (_resultsSince == null) _resultsSince = now();
-      if (now() - _resultsSince > REVEAL_DELAY) revealNow();
-    } else if (v.phase !== 'reveal') { _resultsSince = null; }
-  }
-
   // ---- writes: phase orchestration -----------------------------------------
   function setPhase(p) { write(K.phase, { phase: p, since: now() }); }
 
-  // Full transition into a fresh vote: pause the main timer, switch the TV,
-  // reset the ballot. Used by the "Call a Vote" button AND the buzzer.
-  // Core transition into a fresh vote. Does NOT touch the trigger metadata, so a
-  // buzzer / body report that started it stays visible on the voting screen.
-  function enterVoting() {
-    _resultsSince = null; _killedRound = null;
-    setPhase('voting');
-    mainPause();
-    // Bump the round so any leftover ballots from a previous vote are retired.
-    write(K.vote, { running: false, remaining: voteDur(), duration: voteDur(), phase: 'voting', round: nextRound() });
-    var m = read(K.meeting); buzzSeen = (m && m.calledAt) || 0; // this trigger is handled
-  }
-  // Manual GM-initiated vote (no buzzer / body report).
+  // "Call a Vote" (manual) just writes the trigger; the SERVER moves everyone to
+  // voting, pauses the main timer, and opens the ballot — identical to a buzzer
+  // press or a body report. This way it works even if the GM screen isn't awake.
   function callVoteManual() {
     write(K.meeting, { calledAt: now(), source: 'manual', reporter: null });
-    enterVoting();
   }
   // Back to open play: resume the main timer, and START the buzzer/report cooldown
   // now — after every round, however it was triggered.
   function returnToOpen() {
-    _resultsSince = null;
     setPhase('open');
     mainStart();          // resume from where it paused
     write(K.cooldown, { armedAt: now() + cooldownSecs * 1000 });
     voteMerge({ running: false });
   }
   function newGame() {
-    _resultsSince = null; _killedRound = null;
     setPhase('open');
     setMainDur(mainDur());   // reset paused at full
     // Bump the generation so self-declared deaths retire; everyone is alive again.
     write(K.players, { dead: [], gen: gen() + 1 });
     // New round retires every prior ballot without needing to clear each seat.
-    write(K.vote, { running: false, remaining: voteDur(), duration: voteDur(), phase: 'voting', round: nextRound() });
+    write(K.vote, { running: false, remaining: voteDur(), duration: voteDur(), phase: 'voting', round: nextRound(), killed: false });
     del(K.meeting);
     write(K.cooldown, { armedAt: 0 }); // buzzer/report live immediately for a new game
-    buzzSeen = latestBuzz();
   }
 
   // ---- writes: roster -------------------------------------------------------
@@ -449,16 +414,6 @@
     }
     writePlayers(dead);
   }
-  function addDead(idx) { var d = gmDead(); if (d.indexOf(idx) < 0) { d.push(idx); writePlayers(d); } }
-
-  // Auto-close the ballot the moment every living, boarded player has voted.
-  function checkEarlyClose() {
-    if (phase() !== 'voting') return;
-    var v = read(K.vote); if (!v || v.phase !== 'voting') return;
-    var t = tally();
-    if (t.joined.length > 0 && t.voted.length >= t.joined.length) setVotePhase('results');
-  }
-
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   // ---- seat codes / QR ------------------------------------------------------
@@ -520,20 +475,18 @@
     document.getElementById('joinedN').textContent = seats.length ? (joined + ' / ' + seats.length + ' aboard') : '';
   }
 
-  // ---- buzzer watch (the brain) --------------------------------------------
-  var buzzSeen = null;      // calledAt we've already handled
-  var buzzInit = false;
-  function latestBuzz() { var m = read(K.meeting); return (m && m.calledAt) || 0; }
-  function watchTrigger() {
-    if (!(window.__dcNet && window.__dcNet.ready())) return; // wait for sync
-    if (!buzzInit) { buzzSeen = latestBuzz(); buzzInit = true; return; } // ignore what was already there
-    if (phase() !== 'open') return;
-    var m = read(K.meeting);
-    if (m && (m.calledAt || 0) > buzzSeen && (m.source === 'buzzer' || m.source === 'body')) {
-      buzzSeen = m.calledAt;
-      flashTrigger(m);
-      enterVoting();
+  // ---- trigger toast (display only) ----------------------------------------
+  // The SERVER performs the actual open→voting transition; here we just flash a
+  // banner for the operator when a buzzer/body report moves the game to voting.
+  var _lastPhase = null;
+  function watchPhaseToast() {
+    var p = phase();
+    if (_lastPhase === null) { _lastPhase = p; return; }
+    if (_lastPhase !== 'voting' && p === 'voting') {
+      var m = read(K.meeting);
+      if (m && (m.source === 'buzzer' || m.source === 'body')) flashTrigger(m);
     }
+    _lastPhase = p;
   }
   var buzzTimer = null;
   function flashTrigger(m) {
@@ -650,7 +603,7 @@
     document.getElementById('btnCallVote').addEventListener('click', function () { callVoteManual(); render(); });
     document.getElementById('btnReturn').addEventListener('click', function () { returnToOpen(); render(); });
     document.getElementById('btnResults').addEventListener('click', function () { setVotePhase('results'); render(); });
-    document.getElementById('btnReveal').addEventListener('click', function () { revealNow(); render(); });
+    document.getElementById('btnReveal').addEventListener('click', function () { setVotePhase('reveal'); render(); });
     document.getElementById('btnBackVoting').addEventListener('click', function () { setVotePhase('voting'); render(); });
 
     document.getElementById('mainToggle').addEventListener('click', function () {
@@ -675,7 +628,7 @@
   wire();
   loadGame();
   loadSeats();
-  setInterval(function () { watchTrigger(); checkEarlyClose(); tickReveal(); render(); }, 200);
+  setInterval(function () { watchPhaseToast(); render(); }, 200);
 })();
 </script>
 </body>

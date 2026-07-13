@@ -147,6 +147,146 @@ function baseUrl(req) {
 }
 
 // ---------------------------------------------------------------------------
+// Authoritative game engine.
+// The server — not the GM's phone — drives every AUTOMATIC transition, so the
+// game keeps moving even if the GM screen is asleep or disconnected:
+//   • a buzzer press / body report (or a manual GM call) → move to voting,
+//     pause the open-play timer, open a fresh (paused) ballot for the GM to start
+//   • the ballot closes (timer runs out OR all living players have voted) → results
+//   • after a short delay → reveal, and the condemned passenger is thrown off (dies)
+// Manual GM actions (start/pause timers, return to open play, mark dead, new game)
+// remain client writes — they only happen when the GM is actively tapping.
+// ---------------------------------------------------------------------------
+const VOTE_DEFAULT_SECS = 120;
+const MAIN_DEFAULT_SECS = 3600;
+const REVEAL_DELAY_MS = 6000;
+
+const EK = {
+  phase: 'nighttrain_phase_v1', timer: 'nighttrain_timer_v1', vote: 'nighttrain_vote_v1',
+  players: 'nighttrain_players_v1', meeting: 'nighttrain_meeting_v1',
+};
+const seatField = (i) => 'nighttrain_seat_' + i + '_v1';
+
+let engineInit = false;      // first tick just records the baseline, never fires
+let lastMeetingSig = null;   // last meeting object we've acted on (JSON string)
+let engineBusy = false;
+
+function pj(s) { try { return s ? JSON.parse(s) : null; } catch { return null; } }
+function secsLeft(rec, fallback) {
+  if (!rec) return fallback;
+  if (rec.running && rec.endTime) return Math.max(0, (rec.endTime - Date.now()) / 1000);
+  if (typeof rec.remaining === 'number') return rec.remaining;
+  return fallback;
+}
+
+async function readGame() {
+  const all = await redis.hGetAll(REDIS_HASH);
+  const st = {
+    phase: pj(all[EK.phase]), timer: pj(all[EK.timer]), vote: pj(all[EK.vote]),
+    players: pj(all[EK.players]), meeting: pj(all[EK.meeting]), seats: [],
+  };
+  for (let i = 0; i < characters.length; i++) st.seats[i] = pj(all[seatField(i)]);
+  return st;
+}
+const writeGame = (key, obj) => setKey(key, JSON.stringify(obj));
+
+// Effective dead = GM-declared (players.dead) ∪ self-declared (seat.dead === gen).
+function deadSetOf(st) {
+  const players = st.players || {}, gen = players.gen || 0;
+  const set = new Set(Array.isArray(players.dead) ? players.dead : []);
+  for (let i = 0; i < characters.length; i++) { const s = st.seats[i]; if (s && s.dead === gen) set.add(i); }
+  return set;
+}
+function allLivingVoted(st) {
+  const dead = deadSetOf(st), round = (st.vote && st.vote.round) || 0;
+  let joined = 0, voted = 0;
+  for (let i = 0; i < characters.length; i++) {
+    if (dead.has(i)) continue;
+    const s = st.seats[i]; if (!s || !s.joined) continue;
+    joined++;
+    if (s.vote && s.vote.round === round) voted++;
+  }
+  return joined > 0 && voted >= joined;
+}
+function accusedOf(st) {
+  const N = characters.length, dead = deadSetOf(st), round = (st.vote && st.vote.round) || 0;
+  const counts = new Array(N).fill(0); let skip = 0;
+  for (let i = 0; i < N; i++) {
+    if (dead.has(i)) continue;
+    const s = st.seats[i]; if (!s || !s.joined || !s.vote || s.vote.round !== round) continue;
+    if (s.vote.target === -1) skip++;
+    else if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
+  }
+  let lead = -1, best = 0, ties = 0;
+  counts.forEach((c, i) => { if (c > best) { best = c; lead = i; ties = 1; } else if (c === best && c > 0) ties++; });
+  return (best <= 0 || ties > 1 || skip >= best) ? -1 : lead;
+}
+
+// Enter voting: pause the main timer, open a fresh paused ballot (GM starts it).
+async function engineEnterVoting(st) {
+  const now = Date.now();
+  const t = st.timer || {}, mdur = t.duration || MAIN_DEFAULT_SECS;
+  await writeGame(EK.timer, { running: false, remaining: secsLeft(t, mdur), duration: mdur });
+  const vdur = (st.vote && st.vote.duration) || VOTE_DEFAULT_SECS;
+  await writeGame(EK.vote, { running: false, remaining: vdur, duration: vdur, phase: 'voting', round: ((st.vote && st.vote.round) || 0) + 1, killed: false });
+  await writeGame(EK.phase, { phase: 'voting', since: now });
+}
+// Reveal + throw the condemned passenger off the train (idempotent via `killed`).
+async function engineReveal(st, vote) {
+  const accused = accusedOf(st);
+  if (accused >= 0) {
+    const players = st.players || { dead: [], gen: 0 };
+    const dead = Array.isArray(players.dead) ? players.dead.slice() : [];
+    if (dead.indexOf(accused) < 0) { dead.push(accused); await writeGame(EK.players, { dead, gen: players.gen || 0 }); }
+  }
+  await writeGame(EK.vote, Object.assign({}, vote, { phase: 'reveal', killed: true }));
+}
+
+async function engineTick() {
+  if (engineBusy || !redis.isReady) return;
+  engineBusy = true;
+  try {
+    const st = await readGame();
+    const now = Date.now();
+    const meetingSig = JSON.stringify(st.meeting || null);
+
+    if (!engineInit) { engineInit = true; lastMeetingSig = meetingSig; return; }
+
+    const phase = (st.phase && st.phase.phase) || 'open';
+    const vote = st.vote || {};
+
+    if (phase !== 'open') {
+      lastMeetingSig = meetingSig; // keep current so nothing stale fires on return to open
+      const sub = vote.phase || 'voting';
+      if (sub === 'voting') {
+        const expired = vote.running && vote.endTime && now >= vote.endTime;
+        if (expired || allLivingVoted(st)) {
+          await writeGame(EK.vote, Object.assign({}, vote, { phase: 'results', running: false, remaining: 0, resultsAt: now }));
+        }
+      } else if (sub === 'results') {
+        if (!vote.resultsAt) await writeGame(EK.vote, Object.assign({}, vote, { resultsAt: now }));
+        else if (now - vote.resultsAt >= REVEAL_DELAY_MS) await engineReveal(st, vote);
+      } else if (sub === 'reveal' && !vote.killed) {
+        await engineReveal(st, vote);
+      }
+      return;
+    }
+
+    // open play — a new/changed meeting (buzzer, body, or manual GM call) starts a vote
+    if (st.meeting && meetingSig !== lastMeetingSig) {
+      lastMeetingSig = meetingSig;
+      await engineEnterVoting(st);
+    } else {
+      lastMeetingSig = meetingSig;
+    }
+  } catch (e) {
+    console.error('[engine] tick error:', e.message);
+  } finally {
+    engineBusy = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // HTTP: static screens + friendly routes.
 // ---------------------------------------------------------------------------
 const app = express();
@@ -279,6 +419,8 @@ wss.on('connection', async (ws) => {
     console.error('[boot] startup failed:', e.message);
     process.exit(1);
   }
+  setInterval(engineTick, 250); // authoritative game engine
+  console.log('[boot] game engine running (250ms tick)');
   server.listen(PORT, HOST, () => {
     console.log(`[boot] Midnight Express server on http://${HOST}:${PORT}`);
     console.log(`[boot] serving static from ${STATIC_DIR}`);
