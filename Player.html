@@ -103,6 +103,11 @@
   .mbtn:active{filter:brightness(1.12)}
   .mbtn.dis{opacity:.4;pointer-events:none;filter:grayscale(.4)}
   .mnote{text-align:center;color:var(--dim);font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-top:10px}
+  .mpartner{text-align:center;font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#e6b7ab;margin-bottom:12px}
+  .mrecruit{width:100%;margin-bottom:12px;padding:12px;border-radius:10px;background:var(--panel2);border:1px dashed #7c1f14;color:#e6b7ab;font-family:'Cinzel',serif;font-size:14px;cursor:pointer}
+  .mrecruit:active{filter:brightness(1.12)}
+  .mpass{width:100%;margin-top:10px;padding:12px;border-radius:10px;background:transparent;border:1px solid var(--line);color:var(--dim);font-family:'Cinzel',serif;font-size:14px;cursor:pointer}
+  .mpass:active{background:rgba(124,31,20,.12)}
   .msub{font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);text-align:center;margin-bottom:10px}
   .mtargets{display:flex;flex-direction:column;gap:7px;max-height:46vh;overflow:auto}
   .mtarget{padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);cursor:pointer;font-size:16px}
@@ -156,8 +161,8 @@
   var me = null;            // { index, name, role }
   var roster = [];          // public [{name, role}] for candidate labels
   var seatKey = null;
-  var murderMode = null;    // null | 'knife' | 'pill' (target-picker state)
-  var CFG = { poisonMs: 180000, knifeCdMs: 60000, pills: 3 };
+  var murderMode = null;    // null | 'knife' | 'pill' | 'accomplice' (target-picker state)
+  var CFG = { poisonMs: 180000, knifeCdMs: 60000, pills: 5 };
 
   // ---- helpers --------------------------------------------------------------
   var now = function () { return Date.now(); };
@@ -178,7 +183,19 @@
   function murderActs() { var a = read(K.murderacts); return (a && (a.gen || 0) === gameGen()) ? a : null; }
   function myActs() { return murderActs() || { gen: gameGen(), knifeReadyAt: 0, pillsUsed: 0, kills: [], poisons: [] }; }
   function writeActs(a) { a.gen = gameGen(); write(K.murderacts, a); }
-  function amMurderer() { var m = read(K.murder); return !!(m && m.murderer === me.index); }
+  function murderRec() { return read(K.murder) || {}; }
+  function amMurderer() { var m = murderRec(); return m.murderer === me.index || m.accomplice === me.index; }
+  function amPrimary() { return murderRec().murderer === me.index; }
+  function murderers() { var m = murderRec(), a = []; if (m.murderer != null) a.push(m.murderer); if (m.accomplice != null) a.push(m.accomplice); return a; }
+  function partnerIdx() { var m = murderRec(); if (m.murderer === me.index) return (m.accomplice == null ? null : m.accomplice); if (m.accomplice === me.index) return (m.murderer == null ? null : m.murderer); return null; }
+  // Who holds the single knife (auto-falls to a living partner if the holder dies).
+  function knifeHolder() {
+    var a = murderActs(), m = murderRec();
+    var h = (a && a.knifeHolder != null) ? a.knifeHolder : m.murderer;
+    if (h != null && effDead(h)) { var living = murderers().filter(function (x) { return !effDead(x); }); if (living.length) h = living[0]; }
+    return h;
+  }
+  function iHoldKnife() { return knifeHolder() === me.index; }
   function activePoisons() { var a = murderActs(); if (!a) return []; var t = now(); return (a.poisons || []).filter(function (p) { return t < p.dieAt; }); }
   function myPoison() { var ps = activePoisons(); for (var i = 0; i < ps.length; i++) if (ps[i].target === me.index) return ps[i]; return null; }
 
@@ -190,17 +207,28 @@
     var t = now();
     return (a.poisons || []).some(function (p) { return p.target === i && t >= p.dieAt; });
   }
+  function assignAccomplice(idx) {
+    if (!amPrimary()) return;
+    var m = murderRec();
+    write(K.murder, { murderer: m.murderer, accomplice: (idx == null || idx < 0) ? null : idx });
+  }
+  function passKnife() {
+    if (!iHoldKnife()) return;
+    var p = partnerIdx(); if (p == null) return;
+    var a = myActs(); a.knifeHolder = p; writeActs(a);
+  }
   function knife(target) {
-    if (!amMurderer() || phase() !== 'open' || isDead()) return;
+    if (!amMurderer() || !iHoldKnife() || phase() !== 'open' || isDead()) return;
     var a = myActs();
     if (now() < (a.knifeReadyAt || 0) || effDead(target) || target === me.index) return;
+    if (a.knifeHolder == null) a.knifeHolder = me.index; // pin the holder on first use
     a.kills.push(target); a.knifeReadyAt = now() + CFG.knifeCdMs; writeActs(a);
   }
   function poison(target) {
     if (!amMurderer() || phase() !== 'open' || isDead()) return;
     var a = myActs(), t = now();
     if ((a.pillsUsed || 0) >= CFG.pills || effDead(target) || target === me.index) return;
-    if ((a.poisons || []).some(function (p) { return p.target === target && t < p.dieAt; })) return; // already ticking
+    if ((a.poisons || []).some(function (p) { return p.target === target && t < p.dieAt; })) return; // already ticking (shared pool)
     a.poisons.push({ target: target, dieAt: now() + CFG.poisonMs }); a.pillsUsed = (a.pillsUsed || 0) + 1; writeActs(a);
   }
 
@@ -359,7 +387,8 @@
       '<div class="pc">' + fmt(left) + '</div><div class="ps">your time is running out</div></div>';
   }
 
-  // Murderer's controls: knife / pill (open play only) + live poison timers.
+  // Murderer's controls: one shared knife (passable), a shared pool of pills,
+  // accomplice recruiting, and shared live poison timers (open-play actions only).
   function renderMurder() {
     var el = document.getElementById('murderPanel');
     if (!amMurderer() || isDead()) { el.innerHTML = ''; return; }
@@ -367,30 +396,47 @@
     var pos = (a.poisons || []).filter(function (p) { return t < p.dieAt; });
     var knifeLeft = Math.ceil(((a.knifeReadyAt || 0) - t) / 1000), knifeReady = knifeLeft <= 0;
     var pillsLeft = CFG.pills - (a.pillsUsed || 0);
+    var primary = amPrimary(), partner = partnerIdx(), holder = knifeHolder(), hasKnife = holder === me.index;
+    function pname(i) { return roster[i] ? roster[i].name : '#' + i; }
 
-    var html = '<div class="mpanel"><div class="mhdr">☠ You are the Murderer</div>';
-    if (murderMode && actionable) {
-      var verb = murderMode === 'knife' ? 'knife' : 'poison';
+    var html = '<div class="mpanel"><div class="mhdr">☠ You are ' + (primary ? 'the Murderer' : 'the Accomplice') + '</div>';
+
+    // partner / recruit line
+    if (primary) {
+      html += partner != null
+        ? '<button class="mrecruit" id="mRecruit">Accomplice · ' + esc(pname(partner)) + (effDead(partner) ? ' (dead)' : '') + ' · change</button>'
+        : '<button class="mrecruit" id="mRecruit">＋ Recruit an accomplice</button>';
+    } else if (partner != null) {
+      html += '<div class="mpartner">Partner · ' + esc(pname(partner)) + (effDead(partner) ? ' (dead)' : '') + '</div>';
+    }
+
+    if (murderMode && actionable && (murderMode !== 'accomplice' || primary)) {
+      var verb = murderMode === 'knife' ? 'knife' : murderMode === 'pill' ? 'poison' : 'recruit as your accomplice';
       var list = '';
       for (var i = 0; i < roster.length; i++) {
         if (i === me.index || effDead(i)) continue;
         if (murderMode === 'pill' && pos.some(function (p) { return p.target === i; })) continue;
-        list += '<div class="mtarget" data-t="' + i + '">' + esc(roster[i].name) + '</div>';
+        if (murderMode === 'accomplice' && murderers().indexOf(i) >= 0) continue;
+        list += '<div class="mtarget" data-t="' + i + '">' + esc(pname(i)) + '</div>';
       }
-      html += '<div class="msub">Choose who to ' + verb + '</div><div class="mtargets">' + (list || '<div class="mnote">No living targets</div>') + '</div>' +
+      html += '<div class="msub">Choose who to ' + verb + '</div><div class="mtargets">' + (list || '<div class="mnote">No one available</div>') + '</div>' +
         '<button class="mcancel" id="mCancel">Cancel</button>';
     } else {
-      html += '<div class="mrow">' +
-        '<button class="mbtn' + (actionable && knifeReady ? '' : ' dis') + '" id="mKnife">🔪 Knife<span class="mst">' + (knifeReady ? 'Ready' : fmt(knifeLeft)) + '</span></button>' +
+      // knife (only the holder) + pill (shared pool)
+      var knifeBtn = hasKnife
+        ? '<button class="mbtn' + (actionable && knifeReady ? '' : ' dis') + '" id="mKnife">🔪 Knife<span class="mst">' + (knifeReady ? 'Ready' : fmt(knifeLeft)) + '</span></button>'
+        : '<div class="mbtn dis"><span>🔪 Knife</span><span class="mst">held by ' + esc((pname(holder) || '').split(' ')[0]) + '</span></div>';
+      html += '<div class="mrow">' + knifeBtn +
         '<button class="mbtn' + (actionable && pillsLeft > 0 ? '' : ' dis') + '" id="mPill">💊 Pill<span class="mst">' + pillsLeft + ' left</span></button>' +
         '</div>';
+      if (hasKnife && partner != null && !effDead(partner)) html += '<button class="mpass" id="mPass">Hand the knife to ' + esc(pname(partner)) + '</button>';
       if (!actionable) html += '<div class="mnote">Strike only during open play</div>';
     }
+
     if (pos.length) {
       html += '<div class="mpzhdr">Poison timers</div>';
       pos.forEach(function (p) {
-        var nm = roster[p.target] ? roster[p.target].name : '#' + p.target;
-        html += '<div class="mpz"><span>☠ ' + esc(nm) + '</span><span class="mono">' + fmt(Math.ceil((p.dieAt - t) / 1000)) + '</span></div>';
+        html += '<div class="mpz"><span>☠ ' + esc(pname(p.target)) + '</span><span class="mono">' + fmt(Math.ceil((p.dieAt - t) / 1000)) + '</span></div>';
       });
     }
     html += '</div>';
@@ -400,15 +446,20 @@
       Array.prototype.forEach.call(el.querySelectorAll('.mtarget'), function (td) {
         td.addEventListener('click', function () {
           var target = parseInt(td.dataset.t, 10);
-          if (murderMode === 'knife') knife(target); else poison(target);
+          if (murderMode === 'knife') knife(target);
+          else if (murderMode === 'pill') poison(target);
+          else if (murderMode === 'accomplice') assignAccomplice(target);
           murderMode = null; render();
         });
       });
       var c = document.getElementById('mCancel'); if (c) c.addEventListener('click', function () { murderMode = null; render(); });
     } else {
-      var kb = document.getElementById('mKnife'), pb = document.getElementById('mPill');
-      if (kb && actionable && knifeReady) kb.addEventListener('click', function () { murderMode = 'knife'; render(); });
+      var kb = document.getElementById('mKnife'), pb = document.getElementById('mPill'),
+          pass = document.getElementById('mPass'), rec = document.getElementById('mRecruit');
+      if (kb && actionable && knifeReady && hasKnife) kb.addEventListener('click', function () { murderMode = 'knife'; render(); });
       if (pb && actionable && pillsLeft > 0) pb.addEventListener('click', function () { murderMode = 'pill'; render(); });
+      if (pass) pass.addEventListener('click', function () { if (confirm('Hand the knife to your accomplice? You won’t be able to knife until they pass it back.')) { passKnife(); render(); } });
+      if (rec) rec.addEventListener('click', function () { murderMode = 'accomplice'; render(); });
     }
   }
 

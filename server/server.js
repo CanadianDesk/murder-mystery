@@ -169,7 +169,7 @@ const REVEAL_HOLD_MS = 5000;    // reveal held, then auto-return to open play
 const EK = {
   phase: 'nighttrain_phase_v1', timer: 'nighttrain_timer_v1', vote: 'nighttrain_vote_v1',
   players: 'nighttrain_players_v1', meeting: 'nighttrain_meeting_v1', cooldown: 'nighttrain_cooldown_v1',
-  murderacts: 'nighttrain_murderacts_v1',
+  murderacts: 'nighttrain_murderacts_v1', murder: 'nighttrain_murder_v1', over: 'nighttrain_over_v1',
 };
 const seatField = (i) => 'nighttrain_seat_' + i + '_v1';
 
@@ -189,10 +189,21 @@ async function readGame() {
   const all = await redis.hGetAll(REDIS_HASH);
   const st = {
     phase: pj(all[EK.phase]), timer: pj(all[EK.timer]), vote: pj(all[EK.vote]),
-    players: pj(all[EK.players]), meeting: pj(all[EK.meeting]), murderacts: pj(all[EK.murderacts]), seats: [],
+    players: pj(all[EK.players]), meeting: pj(all[EK.meeting]), murderacts: pj(all[EK.murderacts]),
+    murder: pj(all[EK.murder]), over: pj(all[EK.over]), seats: [],
   };
   for (let i = 0; i < characters.length; i++) st.seats[i] = pj(all[seatField(i)]);
   return st;
+}
+
+// The innocents win once every assigned murderer (murderer + accomplice) is dead.
+function allMurderersDead(st) {
+  const m = st.murder;
+  if (!m || m.murderer == null) return false;
+  const dead = deadSetOf(st);
+  if (!dead.has(m.murderer)) return false;
+  if (m.accomplice != null && !dead.has(m.accomplice)) return false;
+  return true;
 }
 const writeGame = (key, obj) => setKey(key, JSON.stringify(obj));
 
@@ -274,6 +285,11 @@ async function engineTick() {
     const meetingSig = JSON.stringify(st.meeting || null);
 
     if (!engineInit) { engineInit = true; lastMeetingSig = meetingSig; return; }
+
+    // Game over: once every murderer is dead. Sticky until the GM starts a new game.
+    if (!(st.over && st.over.over) && allMurderersDead(st)) {
+      await writeGame(EK.over, { over: true, at: now });
+    }
 
     const phase = (st.phase && st.phase.phase) || 'open';
     const vote = st.vote || {};

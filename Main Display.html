@@ -6,6 +6,9 @@
 <title>The Midnight Express — Main Display</title>
 <!-- dc-net.js gives us the live, cross-device game phase (nighttrain_phase_v1). -->
 <script src="./dc-net.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;700&family=Special+Elite&display=swap" rel="stylesheet">
 <style>
   html,body{height:100%;margin:0;background:#0f0905;overflow:hidden}
   .screen{position:fixed;inset:0;width:100%;height:100%;border:0;
@@ -14,11 +17,25 @@
   /* keep the incoming screen above the outgoing one during the crossfade */
   #countdown{z-index:1}
   #voting{z-index:2}
+  /* game over — the innocents prevail */
+  #gameover{position:fixed;inset:0;z-index:3;display:none;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:0 8vw;box-sizing:border-box;font-family:'Cinzel',serif;color:#2e2013;
+    background:linear-gradient(150deg,#efe4c8 0%,#e7d8b4 42%,#dccca4 100%)}
+  #gameover.show{display:flex;animation:goFade .8s ease both}
+  @keyframes goFade{from{opacity:0}to{opacity:1}}
+  #gameover .go-eyebrow{font-family:'Special Elite',monospace;font-size:clamp(13px,1.4vw,22px);letter-spacing:.42em;text-transform:uppercase;color:#7c1f14}
+  #gameover h1{margin:22px 0;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:clamp(44px,7vw,132px);line-height:1;letter-spacing:.02em}
+  #gameover .go-sub{font-family:'Cinzel',serif;font-weight:600;font-size:clamp(15px,1.6vw,28px);letter-spacing:.14em;text-transform:uppercase;color:#6a4a2c}
 </style>
 </head>
 <body>
   <iframe id="countdown" class="screen" src="./countdown" scrolling="no" title="Countdown"></iframe>
   <iframe id="voting"    class="screen" src="./voting"    scrolling="no" title="Voting"></iframe>
+  <div id="gameover">
+    <div class="go-eyebrow">The Case Is Closed</div>
+    <h1>The Innocents Prevail</h1>
+    <div class="go-sub">Every murderer has been cast from <span id="goTrain">the train</span></div>
+  </div>
 <script>
 (function () {
   'use strict';
@@ -61,6 +78,19 @@
 
   apply();
   setInterval(apply, 200);     // follow the live phase
+
+  // Game over overlay (the innocents have caught every murderer).
+  var OVER_KEY = 'nighttrain_over_v1';
+  var over = document.getElementById('gameover');
+  function checkOver() {
+    var isOver = false;
+    try { var raw = localStorage.getItem(OVER_KEY); if (raw) { var d = JSON.parse(raw); isOver = !!(d && d.over); } } catch (e) {}
+    over.classList.toggle('show', isOver);
+  }
+  setInterval(checkOver, 200);
+  fetch('game.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (g) {
+    if (g && g.train && g.train.name) document.getElementById('goTrain').textContent = g.train.name;
+  }).catch(function () {});
 })();
 </script>
 </body>

@@ -15,7 +15,7 @@
   "murder": {
     "poisonSeconds": 180,
     "knifeCooldownSeconds": 60,
-    "pills": 3
+    "pills": 5
   },
   "map": "assets/floorplan.svg",
   "characters": [

@@ -37,6 +37,10 @@
   .phase .val{font-family:'Cinzel',serif;font-weight:700;font-size:26px;letter-spacing:.1em}
   .phase.open .val{color:var(--brass2)}
   .phase.voting .val{color:#e39a86}
+  #gameoverBanner{display:none;margin-bottom:12px;padding:14px;border-radius:12px;text-align:center;
+    background:linear-gradient(180deg,#8a2a1c,#5e150d);border:1px solid #7c1f14;color:#ffe0d2;
+    font-family:'Cinzel',serif;font-weight:700;font-size:14px;letter-spacing:.06em}
+  #gameoverBanner.show{display:block}
   /* buzz toast */
   .buzz{position:fixed;left:0;right:0;top:0;z-index:50;background:linear-gradient(180deg,#8a2a1c,#5e150d);
     color:#ffe9c9;text-align:center;padding:14px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
@@ -156,6 +160,8 @@
     </div>
     <div class="conn"><span class="dot" id="dot"></span><span id="connTxt">connecting</span></div>
   </header>
+
+  <div id="gameoverBanner">☠ Game Over — the innocents prevail. Start a New Game to reset.</div>
 
   <div class="phase open" id="phaseBadge">
     <span class="lbl">Phase</span>
@@ -287,9 +293,10 @@
     players: 'nighttrain_players_v1',
     meeting: 'nighttrain_meeting_v1',  // { calledAt, source:'buzzer'|'body'|'manual', reporter }
     cooldown: 'nighttrain_cooldown_v1', // { armedAt } — buzzer/report live again once passed
-    murder: 'nighttrain_murder_v1',    // { murderer: idx | null }  (GM-set)
-    murderacts: 'nighttrain_murderacts_v1', // { gen, knifeReadyAt, pillsUsed, kills, poisons }
+    murder: 'nighttrain_murder_v1',    // { murderer, accomplice }
+    murderacts: 'nighttrain_murderacts_v1', // shared { gen, knifeHolder, knifeReadyAt, pillsUsed, kills, poisons }
     bell: 'nighttrain_bell_v1',        // { at } — GM sound-only bell (no vote)
+    over: 'nighttrain_over_v1',        // { over } — set by the server when all murderers are dead
   };
   var SEATS = 'nighttrain_seat_'; // + index + '_v1' — each player owns their own
 
@@ -300,7 +307,7 @@
   var roster = [];         // [{name, role}]
   var N = 0;
   var cooldownSecs = DEFAULT_COOLDOWN; // from game.json (meeting.cooldownSeconds)
-  var murderPills = 3;     // from game.json (murder.pills)
+  var murderPills = 5;     // from game.json (murder.pills)
 
   // ---- tiny helpers ---------------------------------------------------------
   var now = function () { return Date.now(); };
@@ -442,8 +449,9 @@
     write(K.vote, { running: false, remaining: voteDur(), duration: voteDur(), phase: 'voting', round: nextRound(), killed: false });
     del(K.meeting);
     write(K.cooldown, { armedAt: 0 }); // buzzer/report live immediately for a new game
-    write(K.murder, { murderer: null }); // clear the murderer; gen bump resets pills/kills
+    write(K.murder, { murderer: null, accomplice: null }); // clear murderers; gen bump resets pills/kills
     del(K.murderacts);
+    del(K.over); // clear the game-over screen
   }
 
   // ---- writes: roster -------------------------------------------------------
@@ -618,23 +626,28 @@
     // live tally + seat presence
     renderTally();
 
-    // roster / manifest (effective deaths, cause + murderer marked)
+    // roster / manifest (effective deaths, cause + murderers marked)
     var deadSet = effDeadSet();
-    var murdererIdx = (read(K.murder) || {}).murderer;
+    var mk = read(K.murder) || {};
     var deadCount = 0, els = document.getElementById('roster').children;
     for (var i = 0; i < els.length; i++) {
       var isDead = !!deadSet[i];
       if (isDead) deadCount++;
+      var isKiller = (i === mk.murderer || i === mk.accomplice);
       els[i].classList.toggle('dead', isDead);
-      els[i].classList.toggle('murderer', i === murdererIdx);
+      els[i].classList.toggle('murderer', isKiller);
       els[i].querySelector('.st').textContent = isDead ? 'Lost' : 'Alive';
       var roleText = isDead ? deathCause(i) : (roster[i] ? (roster[i].role || '') : '');
-      if (i === murdererIdx) roleText = '☠ Murderer' + (roleText ? ' · ' + roleText : '');
+      if (isKiller) roleText = '☠ ' + (i === mk.murderer ? 'Murderer' : 'Accomplice') + (roleText ? ' · ' + roleText : '');
       els[i].querySelector('.r').textContent = roleText;
     }
     document.getElementById('aliveN').textContent = String(N - deadCount);
     document.getElementById('deadN').textContent = String(deadCount);
     renderMurderPanel();
+
+    // game over banner
+    var ov = read(K.over);
+    document.getElementById('gameoverBanner').classList.toggle('show', !!(ov && ov.over));
   }
 
   function buildMurdererSelect() {
@@ -649,13 +662,17 @@
     var m = read(K.murder) || {}, cur = (m.murderer == null) ? '' : String(m.murderer);
     if (document.activeElement !== sel && sel.value !== cur) sel.value = cur;
     if (m.murderer == null) { info.innerHTML = '<div class="mnote">No murderer assigned.</div>'; return; }
-    var a = murderActs(), t = now(), name = roster[m.murderer] ? roster[m.murderer].name : '#' + m.murderer;
+    function pname(i) { return roster[i] ? roster[i].name : '#' + i; }
+    var a = murderActs(), t = now();
     var pillsLeft = murderPills - (a ? (a.pillsUsed || 0) : 0);
     var pos = a ? (a.poisons || []).filter(function (p) { return t < p.dieAt; }) : [];
-    var html = '<div class="minfo"><b>' + esc(name) + '</b> · ' + pillsLeft + ' / ' + murderPills + ' pills left</div>';
+    var holder = (a && a.knifeHolder != null) ? a.knifeHolder : m.murderer;
+    var html = '<div class="minfo"><b>' + esc(pname(m.murderer)) + '</b>' +
+      (m.accomplice != null ? ' &amp; <b>' + esc(pname(m.accomplice)) + '</b> (accomplice)' : ' <span style="color:#8a6c44">· no accomplice</span>') + '</div>';
+    html += '<div class="minfo" style="margin-top:4px">🔪 knife with ' + esc(pname(holder)) + ' · 💊 ' + pillsLeft + ' / ' + murderPills + ' pills left</div>';
     if (pos.length) {
       html += '<div class="mpzlist">';
-      pos.forEach(function (p) { var nm = roster[p.target] ? roster[p.target].name : '#' + p.target; html += '<div class="mpzrow"><span>☠ ' + esc(nm) + '</span><span class="mono">' + fmt(Math.ceil((p.dieAt - t) / 1000)) + '</span></div>'; });
+      pos.forEach(function (p) { html += '<div class="mpzrow"><span>☠ ' + esc(pname(p.target)) + '</span><span class="mono">' + fmt(Math.ceil((p.dieAt - t) / 1000)) + '</span></div>'; });
       html += '</div>';
     } else html += '<div class="mnote">No active poisons.</div>';
     info.innerHTML = html;
