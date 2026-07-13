@@ -175,7 +175,7 @@
         <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:22px">
           <p style="margin:0;font-family:'Special Elite',monospace;font-size:clamp(13px,1.3vw,20px);letter-spacing:.42em;color:#6a4a2c;text-transform:uppercase;animation:ntRise .6s ease both">The Vote Is Split</p>
           <h2 style="margin:0;font-family:'Cinzel Decorative',serif;font-weight:900;font-size:clamp(48px,6.6vw,128px);line-height:1;letter-spacing:.02em;color:#2e2013;animation:ntRise .8s cubic-bezier(.2,.7,.2,1) .12s both">Everyone Survives</h2>
-          <p style="margin:0;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(15px,1.5vw,26px);letter-spacing:.14em;color:#6a4a2c;text-transform:uppercase;animation:ntFade 1s ease .9s both">No accusation carries · the Midnight Express rolls on</p>
+          <p style="margin:0;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(15px,1.5vw,26px);letter-spacing:.14em;color:#6a4a2c;text-transform:uppercase;animation:ntFade 1s ease .9s both">No accusation carries · {{ trainName }} rolls on</p>
         </div>
       </sc-if>
 
@@ -263,8 +263,8 @@ class Component extends DCLogic {
       }
     } catch (e) {}
 
-    // player deaths — GM-declared (players.dead) plus self-declared (seat.dead
-    // === current generation). A new game bumps the generation to retire the latter.
+    // deaths — GM/vote (players.dead) plus murders (knife victims + poisons whose
+    // timer has elapsed). A poison resolving mid-vote strikes the roster live.
     let deadArr = [], gen = 0;
     try {
       const raw = localStorage.getItem(PKEY);
@@ -275,18 +275,28 @@ class Component extends DCLogic {
       }
     } catch (e) {}
 
-    // tally live player ballots: each player owns nighttrain_seat_<i>_v1, and a
-    // vote only counts if it's for the current round (a new round retires old ballots).
     const N = (this.state.roster || DEFAULT_ROSTER).length;
     const deadSet = new Set(deadArr);
+    try {
+      const raw = localStorage.getItem('nighttrain_murderacts_v1');
+      if (raw) {
+        const a = JSON.parse(raw);
+        if (a && (a.gen || 0) === gen) {
+          (a.kills || []).forEach(i => deadSet.add(i));
+          const nowT = Date.now();
+          (a.poisons || []).forEach(p => { if (nowT >= p.dieAt) deadSet.add(p.target); });
+        }
+      }
+    } catch (e) {}
+
+    // tally live ballots: a vote counts only for the current round; the dead cast none.
     const votes = new Array(N).fill(0);
     let skip = 0;
     for (let i = 0; i < N; i++) {
+      if (deadSet.has(i)) continue;
       let s = null;
       try { const raw = localStorage.getItem('nighttrain_seat_' + i + '_v1'); if (raw) s = JSON.parse(raw); } catch (e) {}
-      if (s && s.dead === gen) deadSet.add(i);  // self-declared death
-      if (deadSet.has(i)) continue;             // the dead cast no ballot
-      if (!s || !s.joined || !s.vote || s.vote.round !== round) continue;
+      if (!s || !s.vote || s.vote.round !== round) continue;
       if (s.vote.target === -1) skip++;
       else if (s.vote.target >= 0 && s.vote.target < N) votes[s.vote.target]++;
     }

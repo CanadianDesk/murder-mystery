@@ -90,6 +90,7 @@ const CODE_LEN = 4;
 
 let characters = [];       // [{ name, role }] from game.json
 let trainName = 'The Midnight Express'; // from game.json train.name
+let cooldownSecs = 90;     // from game.json meeting.cooldownSeconds
 let codeToSeat = new Map(); // 'WXYZ' -> index
 let seatToCode = [];        // index -> 'WXYZ'
 
@@ -99,6 +100,7 @@ function loadCharacters() {
     const g = JSON.parse(raw);
     characters = Array.isArray(g.characters) ? g.characters : [];
     if (g.train && g.train.name) trainName = g.train.name;
+    if (g.meeting && typeof g.meeting.cooldownSeconds === 'number') cooldownSecs = g.meeting.cooldownSeconds;
   } catch (e) {
     console.error('[seats] could not read game.json:', e.message);
     characters = [];
@@ -161,11 +163,13 @@ function baseUrl(req) {
 // ---------------------------------------------------------------------------
 const VOTE_DEFAULT_SECS = 120;
 const MAIN_DEFAULT_SECS = 3600;
-const REVEAL_DELAY_MS = 6000;
+const REVEAL_DELAY_MS = 6000;   // results (tally) shown before the reveal
+const REVEAL_HOLD_MS = 5000;    // reveal held, then auto-return to open play
 
 const EK = {
   phase: 'nighttrain_phase_v1', timer: 'nighttrain_timer_v1', vote: 'nighttrain_vote_v1',
-  players: 'nighttrain_players_v1', meeting: 'nighttrain_meeting_v1',
+  players: 'nighttrain_players_v1', meeting: 'nighttrain_meeting_v1', cooldown: 'nighttrain_cooldown_v1',
+  murderacts: 'nighttrain_murderacts_v1',
 };
 const seatField = (i) => 'nighttrain_seat_' + i + '_v1';
 
@@ -185,37 +189,44 @@ async function readGame() {
   const all = await redis.hGetAll(REDIS_HASH);
   const st = {
     phase: pj(all[EK.phase]), timer: pj(all[EK.timer]), vote: pj(all[EK.vote]),
-    players: pj(all[EK.players]), meeting: pj(all[EK.meeting]), seats: [],
+    players: pj(all[EK.players]), meeting: pj(all[EK.meeting]), murderacts: pj(all[EK.murderacts]), seats: [],
   };
   for (let i = 0; i < characters.length; i++) st.seats[i] = pj(all[seatField(i)]);
   return st;
 }
 const writeGame = (key, obj) => setKey(key, JSON.stringify(obj));
 
-// Effective dead = GM-declared (players.dead) ∪ self-declared (seat.dead === gen).
+// Effective dead = GM/vote deaths (players.dead) ∪ murders (knife victims + poisons
+// whose timer has elapsed). Murder acts only count for the current generation.
 function deadSetOf(st) {
   const players = st.players || {}, gen = players.gen || 0;
   const set = new Set(Array.isArray(players.dead) ? players.dead : []);
-  for (let i = 0; i < characters.length; i++) { const s = st.seats[i]; if (s && s.dead === gen) set.add(i); }
+  const a = st.murderacts;
+  if (a && (a.gen || 0) === gen) {
+    (a.kills || []).forEach((i) => set.add(i));
+    const now = Date.now();
+    (a.poisons || []).forEach((p) => { if (now >= p.dieAt) set.add(p.target); });
+  }
   return set;
 }
+// Every LIVING passenger (all 16 minus the dead) — no presence/online concept.
 function allLivingVoted(st) {
   const dead = deadSetOf(st), round = (st.vote && st.vote.round) || 0;
-  let joined = 0, voted = 0;
+  let living = 0, voted = 0;
   for (let i = 0; i < characters.length; i++) {
     if (dead.has(i)) continue;
-    const s = st.seats[i]; if (!s || !s.joined) continue;
-    joined++;
-    if (s.vote && s.vote.round === round) voted++;
+    living++;
+    const s = st.seats[i];
+    if (s && s.vote && s.vote.round === round) voted++;
   }
-  return joined > 0 && voted >= joined;
+  return living > 0 && voted >= living;
 }
 function accusedOf(st) {
   const N = characters.length, dead = deadSetOf(st), round = (st.vote && st.vote.round) || 0;
   const counts = new Array(N).fill(0); let skip = 0;
   for (let i = 0; i < N; i++) {
     if (dead.has(i)) continue;
-    const s = st.seats[i]; if (!s || !s.joined || !s.vote || s.vote.round !== round) continue;
+    const s = st.seats[i]; if (!s || !s.vote || s.vote.round !== round) continue;
     if (s.vote.target === -1) skip++;
     else if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
   }
@@ -241,7 +252,17 @@ async function engineReveal(st, vote) {
     const dead = Array.isArray(players.dead) ? players.dead.slice() : [];
     if (dead.indexOf(accused) < 0) { dead.push(accused); await writeGame(EK.players, { dead, gen: players.gen || 0 }); }
   }
-  await writeGame(EK.vote, Object.assign({}, vote, { phase: 'reveal', killed: true }));
+  await writeGame(EK.vote, Object.assign({}, vote, { phase: 'reveal', killed: true, revealAt: Date.now() }));
+}
+// Auto-return to open play: resume the paused main timer + start the buzzer cooldown.
+async function engineReturnToOpen(st) {
+  const now = Date.now();
+  const t = st.timer || {}, mdur = t.duration || MAIN_DEFAULT_SECS;
+  const rem = secsLeft(t, mdur);
+  await writeGame(EK.timer, { running: true, endTime: now + rem * 1000, remaining: rem, duration: mdur });
+  await writeGame(EK.cooldown, { armedAt: now + cooldownSecs * 1000 });
+  await writeGame(EK.vote, Object.assign({}, st.vote || {}, { running: false }));
+  await writeGame(EK.phase, { phase: 'open', since: now });
 }
 
 async function engineTick() {
@@ -268,8 +289,9 @@ async function engineTick() {
       } else if (sub === 'results') {
         if (!vote.resultsAt) await writeGame(EK.vote, Object.assign({}, vote, { resultsAt: now }));
         else if (now - vote.resultsAt >= REVEAL_DELAY_MS) await engineReveal(st, vote);
-      } else if (sub === 'reveal' && !vote.killed) {
-        await engineReveal(st, vote);
+      } else if (sub === 'reveal') {
+        if (!vote.killed) await engineReveal(st, vote);
+        else if (vote.revealAt && now - vote.revealAt >= REVEAL_HOLD_MS) await engineReturnToOpen(st);
       }
       return;
     }

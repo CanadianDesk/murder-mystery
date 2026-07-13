@@ -6,10 +6,16 @@
   "buzzer": {
     "title": "Porter's Call",
     "soundSeconds": 3.5,
-    "soundRepeats": 3
+    "soundRepeats": 3,
+    "volume": 1.75
   },
   "meeting": {
     "cooldownSeconds": 90
+  },
+  "murder": {
+    "poisonSeconds": 180,
+    "knifeCooldownSeconds": 60,
+    "pills": 3
   },
   "map": "assets/floorplan.svg",
   "characters": [

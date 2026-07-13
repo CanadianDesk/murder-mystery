@@ -93,6 +93,16 @@
   .pl.dead{background:#1a0f0a;border-color:#5e150d;opacity:.85}
   .pl.dead .n{color:#c78f7f;text-decoration:line-through;text-decoration-color:#7c1f14}
   .pl.dead .st{color:var(--red)}
+  .pl.murderer{border-color:#7c1f14;box-shadow:inset 0 0 0 1px rgba(124,31,20,.5)}
+  .pl.murderer .r{color:#e39a86}
+  /* murderer oversight */
+  .murderinfo{margin-top:10px}
+  .murderinfo .minfo{font-size:14px;color:var(--ink)}
+  .murderinfo .minfo b{color:#e39a86}
+  .murderinfo .mnote{color:#8a6c44;font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.06em;margin-top:4px}
+  .murderinfo .mpzlist{margin-top:8px}
+  .murderinfo .mpzrow{display:flex;justify-content:space-between;padding:6px 2px;border-top:1px dotted rgba(124,31,20,.4);font-size:13px;color:#e6b7ab}
+  .murderinfo .mpzrow .mono{color:#ffd7c7;font-weight:700}
   /* verdict */
   .verdict{margin-top:10px}
   label.fld{display:block;font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.18em;
@@ -164,6 +174,9 @@
       <button class="sm" id="btnReveal">Show Reveal</button>
       <button class="sm" id="btnBackVoting">Back to Voting</button>
     </div>
+    <div class="row">
+      <button class="sm" id="btnBell">🔔 Ring Bell (sound only)</button>
+    </div>
   </div>
 
   <!-- Main (open-play) timer -->
@@ -218,12 +231,21 @@
       <span class="count"><b id="aliveN">0</b> living · <span id="deadN">0</span> lost</span>
     </div>
     <div class="roster" id="roster"></div>
-    <div class="hint">Tap a passenger to toggle alive / thrown from the train.</div>
+    <div class="hint">Tap a passenger to toggle alive / thrown off. The murderer is marked ☠.</div>
+  </div>
+
+  <!-- Murderer -->
+  <div class="card">
+    <h3>The Murderer</h3>
+    <label class="fld" for="murdererSel">Assign one passenger as the murderer</label>
+    <select id="murdererSel"><option value="">— none —</option></select>
+    <div id="murderInfo" class="murderinfo"></div>
+    <div class="hint">They get a knife (60s cooldown) and 3 poison pills on their own screen.</div>
   </div>
 
   <!-- Passenger codes / QR -->
   <div class="card">
-    <h3>Passenger Codes <span class="mono" id="joinedN"></span></h3>
+    <h3>Passenger Codes</h3>
     <div class="seatlist" id="seatList"></div>
     <div class="hint">Show each player their code or QR to board. Tap a row for its QR.</div>
   </div>
@@ -265,6 +287,9 @@
     players: 'nighttrain_players_v1',
     meeting: 'nighttrain_meeting_v1',  // { calledAt, source:'buzzer'|'body'|'manual', reporter }
     cooldown: 'nighttrain_cooldown_v1', // { armedAt } — buzzer/report live again once passed
+    murder: 'nighttrain_murder_v1',    // { murderer: idx | null }  (GM-set)
+    murderacts: 'nighttrain_murderacts_v1', // { gen, knifeReadyAt, pillsUsed, kills, poisons }
+    bell: 'nighttrain_bell_v1',        // { at } — GM sound-only bell (no vote)
   };
   var SEATS = 'nighttrain_seat_'; // + index + '_v1' — each player owns their own
 
@@ -275,6 +300,7 @@
   var roster = [];         // [{name, role}]
   var N = 0;
   var cooldownSecs = DEFAULT_COOLDOWN; // from game.json (meeting.cooldownSeconds)
+  var murderPills = 3;     // from game.json (murder.pills)
 
   // ---- tiny helpers ---------------------------------------------------------
   var now = function () { return Date.now(); };
@@ -305,37 +331,53 @@
   function seatKey(i) { return SEATS + i + '_v1'; }
   function readSeat(i) { return read(seatKey(i)); }
 
-  // Death has two lanes, merged everywhere:
-  //   GM-declared  — players key `dead` array (thrown off / GM calls it)
-  //   self-declared — a player's own seat.dead === current generation
-  // "New Game" bumps the generation, which retires every self-declared death.
+  // Death lanes, merged everywhere: GM/vote (players.dead) and murders (knife
+  // victims + elapsed poisons in murderacts). "New Game" bumps the generation,
+  // retiring every murder death and resetting the murderer's pills.
   function playersRec() { return read(K.players) || { dead: [], gen: 0 }; }
   function gen() { return playersRec().gen || 0; }
   function gmDead() { var d = playersRec().dead; return Array.isArray(d) ? d.slice() : []; }
   function writePlayers(dead) { write(K.players, { dead: dead, gen: gen() }); }
+  function murderActs() { var a = read(K.murderacts); return (a && (a.gen || 0) === gen()) ? a : null; }
   function effDeadSet() {
-    var g = gen(), set = {};
+    var set = {};
     gmDead().forEach(function (i) { set[i] = true; });
-    for (var i = 0; i < N; i++) { var s = readSeat(i); if (s && s.dead === g) set[i] = true; }
+    var a = murderActs();
+    if (a) {
+      (a.kills || []).forEach(function (i) { set[i] = true; });
+      var t = now();
+      (a.poisons || []).forEach(function (p) { if (t >= p.dieAt) set[p.target] = true; });
+    }
     return set;
   }
+  // How a given passenger died (for the manifest).
+  function deathCause(i) {
+    if (gmDead().indexOf(i) >= 0) return 'Thrown off the train';
+    var a = murderActs();
+    if (a) {
+      if ((a.kills || []).indexOf(i) >= 0) return 'Knifed';
+      var t = now();
+      if ((a.poisons || []).some(function (p) { return p.target === i && t >= p.dieAt; })) return 'Poisoned';
+    }
+    return 'Lost';
+  }
 
-  // Aggregate live player ballots for the current round.
+  // Aggregate live ballots for the current round. "living" = all non-dead
+  // passengers (no online/offline concept); "voted" = those with a current ballot.
   function tally() {
     var round = voteRound(), dead = effDeadSet();
-    var counts = zeros(N), skip = 0, joined = [], voted = [];
+    var counts = zeros(N), skip = 0, living = [], voted = [];
     for (var i = 0; i < N; i++) {
       if (dead[i]) continue;
+      living.push(i);
       var s = readSeat(i);
-      if (!s || !s.joined) continue;
-      joined.push(i);
-      if (s.vote && s.vote.round === round) {
+      if (s && s.vote && s.vote.round === round) {
         voted.push(i);
         if (s.vote.target === -1) skip++;
         else if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
       }
     }
-    return { round: round, counts: counts, skip: skip, joined: joined, voted: voted };
+    return { round: round, counts: counts, skip: skip, living: living, voted: voted };
   }
   // ---- writes: main timer ---------------------------------------------------
   function mainStart() { var d = mainDur(); var r = remOf(read(K.timer), d) || d; write(K.timer, { running: true, endTime: now() + r * 1000, remaining: r, duration: d }); }
@@ -400,20 +442,19 @@
     write(K.vote, { running: false, remaining: voteDur(), duration: voteDur(), phase: 'voting', round: nextRound(), killed: false });
     del(K.meeting);
     write(K.cooldown, { armedAt: 0 }); // buzzer/report live immediately for a new game
+    write(K.murder, { murderer: null }); // clear the murderer; gen bump resets pills/kills
+    del(K.murderacts);
   }
 
   // ---- writes: roster -------------------------------------------------------
   function toggleDead(idx) {
-    var eff = effDeadSet(), dead = gmDead(), at = dead.indexOf(idx);
-    if (eff[idx]) {
-      // Revive: drop from the GM lane and clear any self-declared death too.
-      if (at >= 0) dead.splice(at, 1);
-      var s = readSeat(idx); if (s && s.dead != null) { s.dead = null; write(seatKey(idx), s); }
-    } else {
-      dead.push(idx);
-    }
+    // Toggles the GM lane. (Murder victims are cleared only by New Game.)
+    var dead = gmDead(), at = dead.indexOf(idx);
+    if (at >= 0) dead.splice(at, 1); else dead.push(idx);
     writePlayers(dead);
   }
+  function setMurderer(idx) { write(K.murder, { murderer: (idx == null || idx < 0) ? null : idx }); }
+  function ringBell() { write(K.bell, { at: now() }); } // sound only — the server ignores it
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   // ---- seat codes / QR ------------------------------------------------------
@@ -427,7 +468,7 @@
     var host = document.getElementById('seatList'); host.innerHTML = '';
     seats.forEach(function (s) {
       var el = document.createElement('div'); el.className = 'seat'; el.dataset.idx = s.index;
-      el.innerHTML = '<div class="sr"><span class="sdot"></span><span class="snm"></span>' +
+      el.innerHTML = '<div class="sr"><span class="snm"></span>' +
         '<span class="scode"></span><span class="schev">QR ▾</span></div><div class="qrwrap"></div>';
       el.querySelector('.snm').textContent = s.name;
       el.querySelector('.scode').textContent = s.code;
@@ -460,19 +501,8 @@
         '</span><span class="tbar"><i style="width:' + (c / max * 100).toFixed(0) + '%"></i></span><span class="tct">' + c + '</span></div>';
     });
     if (t.skip > 0) { any = true; rows += '<div class="trow"><span class="tnm" style="color:#a8895a">Abstain</span><span class="tbar"><i style="width:' + (t.skip / max * 100).toFixed(0) + '%;background:#8a6c44"></i></span><span class="tct">' + t.skip + '</span></div>'; }
-    var sum = t.joined.length ? (t.voted.length + ' of ' + t.joined.length + ' aboard have voted') : 'No players boarded yet';
+    var sum = t.voted.length + ' of ' + t.living.length + ' living have voted';
     el.innerHTML = '<div class="sum">' + sum + '</div>' + (any ? rows : '<div class="empty">Awaiting the first ballot…</div>');
-  }
-  function renderSeats() {
-    var host = document.getElementById('seatList'); if (!host) return;
-    var joined = 0, els = host.children;
-    for (var i = 0; i < els.length; i++) {
-      var idx = parseInt(els[i].dataset.idx, 10);
-      var s = readSeat(idx), on = !!(s && s.joined);
-      if (on) joined++;
-      els[i].querySelector('.sdot').classList.toggle('on', on);
-    }
-    document.getElementById('joinedN').textContent = seats.length ? (joined + ' / ' + seats.length + ' aboard') : '';
   }
 
   // ---- trigger toast (display only) ----------------------------------------
@@ -529,9 +559,10 @@
         setTrain(g.train && g.train.name);
         roster = (Array.isArray(g.characters) && g.characters.length) ? g.characters : fallbackRoster();
         if (g.meeting && typeof g.meeting.cooldownSeconds === 'number') cooldownSecs = g.meeting.cooldownSeconds;
+        if (g.murder && typeof g.murder.pills === 'number') murderPills = g.murder.pills;
       }
-      N = roster.length; buildRoster(); render();
-    }).catch(function () { roster = fallbackRoster(); N = roster.length; buildRoster(); render(); });
+      N = roster.length; buildRoster(); buildMurdererSelect(); render();
+    }).catch(function () { roster = fallbackRoster(); N = roster.length; buildRoster(); buildMurdererSelect(); render(); });
   }
   function fallbackRoster() {
     return ['Col. Reginald Ashworth','The Contessa von Halle','Dr. Silas Mortimer','Miss Evelyn Carr',
@@ -586,22 +617,48 @@
 
     // live tally + seat presence
     renderTally();
-    renderSeats();
 
-    // roster / manifest (effective deaths, with the cause shown)
-    var g = gen(), gmSet = {}; gmDead().forEach(function (i) { gmSet[i] = true; });
+    // roster / manifest (effective deaths, cause + murderer marked)
+    var deadSet = effDeadSet();
+    var murdererIdx = (read(K.murder) || {}).murderer;
     var deadCount = 0, els = document.getElementById('roster').children;
     for (var i = 0; i < els.length; i++) {
-      var s = readSeat(i), selfDead = !!(s && s.dead === g), isDead = gmSet[i] || selfDead;
+      var isDead = !!deadSet[i];
       if (isDead) deadCount++;
       els[i].classList.toggle('dead', isDead);
+      els[i].classList.toggle('murderer', i === murdererIdx);
       els[i].querySelector('.st').textContent = isDead ? 'Lost' : 'Alive';
-      els[i].querySelector('.r').textContent = isDead
-        ? (selfDead && !gmSet[i] ? 'Reported killed' : 'Thrown from the train')
-        : (roster[i] ? (roster[i].role || '') : '');
+      var roleText = isDead ? deathCause(i) : (roster[i] ? (roster[i].role || '') : '');
+      if (i === murdererIdx) roleText = '☠ Murderer' + (roleText ? ' · ' + roleText : '');
+      els[i].querySelector('.r').textContent = roleText;
     }
     document.getElementById('aliveN').textContent = String(N - deadCount);
     document.getElementById('deadN').textContent = String(deadCount);
+    renderMurderPanel();
+  }
+
+  function buildMurdererSelect() {
+    var sel = document.getElementById('murdererSel'); if (!sel) return;
+    var html = '<option value="">— none —</option>';
+    roster.forEach(function (c, i) { html += '<option value="' + i + '">' + esc(c.name) + '</option>'; });
+    sel.innerHTML = html;
+  }
+  function renderMurderPanel() {
+    var sel = document.getElementById('murdererSel'), info = document.getElementById('murderInfo');
+    if (!sel || !info) return;
+    var m = read(K.murder) || {}, cur = (m.murderer == null) ? '' : String(m.murderer);
+    if (document.activeElement !== sel && sel.value !== cur) sel.value = cur;
+    if (m.murderer == null) { info.innerHTML = '<div class="mnote">No murderer assigned.</div>'; return; }
+    var a = murderActs(), t = now(), name = roster[m.murderer] ? roster[m.murderer].name : '#' + m.murderer;
+    var pillsLeft = murderPills - (a ? (a.pillsUsed || 0) : 0);
+    var pos = a ? (a.poisons || []).filter(function (p) { return t < p.dieAt; }) : [];
+    var html = '<div class="minfo"><b>' + esc(name) + '</b> · ' + pillsLeft + ' / ' + murderPills + ' pills left</div>';
+    if (pos.length) {
+      html += '<div class="mpzlist">';
+      pos.forEach(function (p) { var nm = roster[p.target] ? roster[p.target].name : '#' + p.target; html += '<div class="mpzrow"><span>☠ ' + esc(nm) + '</span><span class="mono">' + fmt(Math.ceil((p.dieAt - t) / 1000)) + '</span></div>'; });
+      html += '</div>';
+    } else html += '<div class="mnote">No active poisons.</div>';
+    info.innerHTML = html;
   }
 
   // ---- wire up controls -----------------------------------------------------
@@ -626,8 +683,13 @@
     document.querySelectorAll('[data-mdur]').forEach(function (b) { b.addEventListener('click', function () { setMainDur(parseInt(b.dataset.mdur, 10)); render(); }); });
     document.querySelectorAll('[data-vdur]').forEach(function (b) { b.addEventListener('click', function () { setVoteDur(parseInt(b.dataset.vdur, 10)); render(); }); });
 
+    document.getElementById('murdererSel').addEventListener('change', function () {
+      setMurderer(this.value === '' ? null : parseInt(this.value, 10)); render();
+    });
+    document.getElementById('btnBell').addEventListener('click', function () { ringBell(); });
+
     document.getElementById('btnNewGame').addEventListener('click', function () {
-      if (confirm('Start a new game? This resets the timers, the vote, and brings everyone back alive.')) { newGame(); render(); }
+      if (confirm('Start a new game? This resets the timers, the vote, the murderer, and brings everyone back alive.')) { newGame(); render(); }
     });
   }
 

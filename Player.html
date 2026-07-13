@@ -83,15 +83,36 @@
   .yourvote{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);color:var(--dim);font-size:13px;letter-spacing:.04em}
   .yourvote b{color:var(--ink);font-weight:600}
 
-  #lifectl{margin-top:22px}
-  .lifebtn{width:100%;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.1em;padding:15px;border-radius:11px;cursor:pointer}
-  .lifebtn.kill{color:#e6c9b8;background:linear-gradient(180deg,#5a2018,#3a130d);border:1px solid #7c1f14}
-  .lifebtn.kill:active{filter:brightness(1.15)}
-  .lifebtn.undo{color:var(--dim);background:transparent;border:1px solid var(--line)}
+  /* ---- poison notice (victim) ---- */
+  #poisonNotice:empty{display:none}
+  .poisoned{border:1px solid #7c1f14;border-radius:14px;background:linear-gradient(180deg,#3a130d,#1a0a07);
+    padding:16px;text-align:center;margin-bottom:16px;animation:pPulse 2s ease-in-out infinite}
+  @keyframes pPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,31,20,.5)}50%{box-shadow:0 0 0 8px rgba(124,31,20,0)}}
+  .poisoned .pt{font-family:'Special Elite',monospace;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:#e39a86}
+  .poisoned .pc{font-family:'Cinzel',serif;font-weight:700;font-size:44px;font-feature-settings:'tnum';color:#ffd7c7;line-height:1.1;margin:4px 0}
+  .poisoned .ps{font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#a06a5a}
+
+  /* ---- murderer panel ---- */
+  #murderPanel:empty{display:none}
+  .mpanel{margin-top:22px;border:1px solid #7c1f14;border-radius:14px;background:linear-gradient(180deg,#241009,var(--bg));padding:16px}
+  .mhdr{font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#e39a86;text-align:center;margin-bottom:12px}
+  .mrow{display:flex;gap:10px}
+  .mbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:'Cinzel',serif;font-weight:700;font-size:17px;
+    padding:15px 8px;border-radius:12px;cursor:pointer;color:#ffe0d2;background:linear-gradient(180deg,#8a2a1c,#5e150d);border:1px solid #7c1f14}
+  .mbtn .mst{font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#e6b7ab;font-weight:400}
+  .mbtn:active{filter:brightness(1.12)}
+  .mbtn.dis{opacity:.4;pointer-events:none;filter:grayscale(.4)}
+  .mnote{text-align:center;color:var(--dim);font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-top:10px}
+  .msub{font-family:'Special Elite',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);text-align:center;margin-bottom:10px}
+  .mtargets{display:flex;flex-direction:column;gap:7px;max-height:46vh;overflow:auto}
+  .mtarget{padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);cursor:pointer;font-size:16px}
+  .mtarget:active{background:#3a1c14;border-color:#7c1f14}
+  .mcancel{width:100%;margin-top:10px;padding:12px;border-radius:10px;background:transparent;border:1px solid var(--line);color:var(--dim);font-family:'Cinzel',serif;font-size:14px;cursor:pointer}
+  .mpzhdr{font-family:'Special Elite',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#a06a5a;margin:14px 0 6px;text-align:center}
+  .mpz{display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-top:1px dotted rgba(124,31,20,.4);font-size:14px;color:#e6b7ab}
+  .mpz .mono{color:#ffd7c7;font-weight:700}
+
   .foot{text-align:center;margin-top:22px;color:#6a4f2a;font-family:'Special Elite',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase}
-  .conn{display:inline-flex;align-items:center;gap:6px}
-  .cdot{width:7px;height:7px;border-radius:50%;background:#6a4f2a}
-  .cdot.on{background:var(--green);box-shadow:0 0 7px rgba(127,174,122,.8)}
 </style>
 </head>
 <body>
@@ -114,12 +135,12 @@
       <div class="role mono" id="role">—</div>
     </div>
 
+    <div id="poisonNotice"></div>
     <div id="body"></div>
-    <div id="lifectl"></div>
+    <div id="murderPanel"></div>
 
     <div class="foot">
-      <span class="conn"><span class="cdot" id="cdot"></span><span id="connTxt">connecting</span></span>
-      &nbsp;·&nbsp; <span id="seatCode">—</span>
+      <span id="seatCode">—</span>
     </div>
   </div>
 
@@ -129,11 +150,14 @@
 
   var SEATS = 'nighttrain_seat_';   // + index + '_v1'
   var K = { phase: 'nighttrain_phase_v1', vote: 'nighttrain_vote_v1', players: 'nighttrain_players_v1',
-            meeting: 'nighttrain_meeting_v1', cooldown: 'nighttrain_cooldown_v1' };
+            meeting: 'nighttrain_meeting_v1', cooldown: 'nighttrain_cooldown_v1',
+            murder: 'nighttrain_murder_v1', murderacts: 'nighttrain_murderacts_v1' };
 
   var me = null;            // { index, name, role }
   var roster = [];          // public [{name, role}] for candidate labels
   var seatKey = null;
+  var murderMode = null;    // null | 'knife' | 'pill' (target-picker state)
+  var CFG = { poisonMs: 180000, knifeCdMs: 60000, pills: 3 };
 
   // ---- helpers --------------------------------------------------------------
   var now = function () { return Date.now(); };
@@ -149,11 +173,37 @@
   function voteRound() { var v = read(K.vote); return (v && v.round) || 0; }
   function gameGen() { var p = read(K.players); return (p && typeof p.gen === 'number') ? p.gen : 0; }
   function gmDeadArr() { var p = read(K.players); return (p && Array.isArray(p.dead)) ? p.dead : []; }
-  // Effective death: GM-declared OR self-declared for the current generation.
+
+  // ---- murder state ---------------------------------------------------------
+  function murderActs() { var a = read(K.murderacts); return (a && (a.gen || 0) === gameGen()) ? a : null; }
+  function myActs() { return murderActs() || { gen: gameGen(), knifeReadyAt: 0, pillsUsed: 0, kills: [], poisons: [] }; }
+  function writeActs(a) { a.gen = gameGen(); write(K.murderacts, a); }
+  function amMurderer() { var m = read(K.murder); return !!(m && m.murderer === me.index); }
+  function activePoisons() { var a = murderActs(); if (!a) return []; var t = now(); return (a.poisons || []).filter(function (p) { return t < p.dieAt; }); }
+  function myPoison() { var ps = activePoisons(); for (var i = 0; i < ps.length; i++) if (ps[i].target === me.index) return ps[i]; return null; }
+
+  // Effective death: GM/vote deaths, knife victims, or elapsed poisons (this game).
   function effDead(i) {
     if (gmDeadArr().indexOf(i) >= 0) return true;
-    var s = read(SEATS + i + '_v1'); return !!(s && s.dead === gameGen());
+    var a = murderActs(); if (!a) return false;
+    if ((a.kills || []).indexOf(i) >= 0) return true;
+    var t = now();
+    return (a.poisons || []).some(function (p) { return p.target === i && t >= p.dieAt; });
   }
+  function knife(target) {
+    if (!amMurderer() || phase() !== 'open' || isDead()) return;
+    var a = myActs();
+    if (now() < (a.knifeReadyAt || 0) || effDead(target) || target === me.index) return;
+    a.kills.push(target); a.knifeReadyAt = now() + CFG.knifeCdMs; writeActs(a);
+  }
+  function poison(target) {
+    if (!amMurderer() || phase() !== 'open' || isDead()) return;
+    var a = myActs(), t = now();
+    if ((a.pillsUsed || 0) >= CFG.pills || effDead(target) || target === me.index) return;
+    if ((a.poisons || []).some(function (p) { return p.target === target && t < p.dieAt; })) return; // already ticking
+    a.poisons.push({ target: target, dieAt: now() + CFG.poisonMs }); a.pillsUsed = (a.pillsUsed || 0) + 1; writeActs(a);
+  }
+
   function mySeat() { return read(seatKey) || {}; }
   function myVote() { var s = mySeat(); return (s.vote && s.vote.round === voteRound()) ? s.vote.target : null; }
 
@@ -174,31 +224,17 @@
   }
   function showErr(m) { document.getElementById('err').textContent = m || ''; }
 
-  function markJoined() {
-    var s = mySeat();
-    write(seatKey, { joined: true, vote: (s && s.vote) || null, dead: (s && s.dead != null) ? s.dead : null, at: now() });
-  }
   function cast(target) {
     if (isDead() || voteRec().phase !== 'voting' || phase() !== 'voting') return;
-    var s = mySeat();
-    write(seatKey, { joined: true, vote: { round: voteRound(), target: target }, dead: (s && s.dead != null) ? s.dead : null, at: now() });
-    render();
-  }
-  function setSelfDead(dead) {
-    var s = mySeat();
-    write(seatKey, { joined: true, vote: (s && s.vote) || null, dead: dead ? gameGen() : null, at: now() });
+    write(seatKey, { vote: { round: voteRound(), target: target }, at: now() });
     render();
   }
   function isDead() { return effDead(me.index); }
-  function isSelfDead() { var s = mySeat(); return !!(s && s.dead === gameGen()); }
 
-  // The buzzer/report cooldown the GM starts when a vote ends.
-  function cooldownLeft() { var c = read(K.cooldown); if (c && c.armedAt) { var s = Math.ceil((c.armedAt - now()) / 1000); return s > 0 ? s : 0; } return 0; }
-  function armed() { return phase() === 'open' && cooldownLeft() === 0; }
-  // Report a dead body — triggers the vote exactly like the buzzer, but tagged
-  // with who found the body so the main screen can show it.
+  // Report a dead body — any time during open play (NOT gated by the buzzer
+  // cooldown; only the buzzer itself is). Tagged with who found the body.
   function reportBody() {
-    if (!armed() || isDead()) return;
+    if (phase() !== 'open' || isDead()) return;
     write(K.meeting, { calledAt: now(), source: 'body', reporter: me.index });
     render();
   }
@@ -212,12 +248,15 @@
     fetch('game.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (g) {
       if (g && g.train && g.train.name) document.getElementById('trainName').textContent = g.train.name;
       roster = (g && Array.isArray(g.characters)) ? g.characters : [];
-      markJoined(); render();
-    }).catch(function () { markJoined(); render(); });
-    setInterval(function () { markPresence(); render(); }, 400);
+      if (g && g.murder) {
+        if (typeof g.murder.poisonSeconds === 'number') CFG.poisonMs = g.murder.poisonSeconds * 1000;
+        if (typeof g.murder.knifeCooldownSeconds === 'number') CFG.knifeCdMs = g.murder.knifeCooldownSeconds * 1000;
+        if (typeof g.murder.pills === 'number') CFG.pills = g.murder.pills;
+      }
+      render();
+    }).catch(function () { render(); });
+    setInterval(render, 400);
   }
-  var lastPresence = 0;
-  function markPresence() { if (now() - lastPresence > 8000) { markJoined(); lastPresence = now(); } }
 
   // ---- tally (mirrors the main display) -------------------------------------
   function tally() {
@@ -226,7 +265,7 @@
     for (var i = 0; i < N; i++) {
       if (effDead(i)) continue;
       var s = read(SEATS + i + '_v1');
-      if (!s || !s.joined || !s.vote || s.vote.round !== round) continue;
+      if (!s || !s.vote || s.vote.round !== round) continue;
       if (s.vote.target === -1) skip++;
       else if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
     }
@@ -238,30 +277,25 @@
 
   // ---- render ---------------------------------------------------------------
   function render() {
-    document.getElementById('cdot').classList.toggle('on', synced());
-    document.getElementById('connTxt').textContent = synced() ? 'aboard' : 'connecting';
-
     var ph = phase(), vr = voteRec(), dead = isDead();
     document.getElementById('ticket').classList.toggle('dead', dead);
-    renderLife();
+    renderPoison();
+    renderMurder();
 
     var body = document.getElementById('body');
 
     // Eliminated — spectator, any phase.
     if (dead) {
-      body.innerHTML = section('Thrown From The Train',
-        '<div class="status"><div class="note">You have been cast from the Midnight Express. Watch the main car — the story rolls on without you.</div></div>');
+      body.innerHTML = section('Off The Train',
+        '<div class="status"><div class="note">You are out of the game. Watch the main car — the story rolls on without you.</div></div>');
       return;
     }
 
-    // Open play — waiting, with the option to report a body.
+    // Open play — waiting, with the option to report a body (any time, no cooldown).
     if (ph !== 'voting') {
-      var cd = cooldownLeft();
-      var action = cd > 0
-        ? '<div class="reportcd">The alarm is re-arming · ' + fmt(cd) + '</div>'
-        : '<button class="reportbtn" id="reportBtn">☠&nbsp; Report a Dead Body</button>';
       body.innerHTML = section('The Train Is In Motion',
-        '<div class="status"><div class="note">Mingle, investigate, accuse in whispers. Found a body? Sound the alarm and call a vote.</div></div>' + action);
+        '<div class="status"><div class="note">Mingle, investigate, accuse in whispers. Found a body? Sound the alarm and call a vote.</div></div>' +
+        '<button class="reportbtn" id="reportBtn">☠&nbsp; Report a Dead Body</button>');
       var rb = document.getElementById('reportBtn');
       if (rb) rb.addEventListener('click', function () {
         if (confirm('Report a dead body? This calls an emergency meeting and starts a vote for everyone.')) reportBody();
@@ -314,18 +348,67 @@
       '<div class="outcome">' + verdict + '<div class="yourvote">' + yours + '</div></div>');
   }
 
-  function renderLife() {
-    var el = document.getElementById('lifectl');
-    var selfDead = isSelfDead(), gmDead = gmDeadArr().indexOf(me.index) >= 0;
-    if (gmDead) { el.innerHTML = ''; return; } // thrown off by the vote — not self-reversible
-    if (selfDead) {
-      el.innerHTML = '<button class="lifebtn undo" id="undoDead">I’m still alive — undo</button>';
-      document.getElementById('undoDead').addEventListener('click', function () { setSelfDead(false); });
+  // Victim's poison countdown.
+  function renderPoison() {
+    var el = document.getElementById('poisonNotice');
+    if (isDead()) { el.innerHTML = ''; return; }
+    var p = myPoison();
+    if (!p) { el.innerHTML = ''; return; }
+    var left = Math.ceil((p.dieAt - now()) / 1000);
+    el.innerHTML = '<div class="poisoned"><div class="pt">☠ You’ve been poisoned</div>' +
+      '<div class="pc">' + fmt(left) + '</div><div class="ps">your time is running out</div></div>';
+  }
+
+  // Murderer's controls: knife / pill (open play only) + live poison timers.
+  function renderMurder() {
+    var el = document.getElementById('murderPanel');
+    if (!amMurderer() || isDead()) { el.innerHTML = ''; return; }
+    var a = myActs(), t = now(), actionable = phase() === 'open';
+    var pos = (a.poisons || []).filter(function (p) { return t < p.dieAt; });
+    var knifeLeft = Math.ceil(((a.knifeReadyAt || 0) - t) / 1000), knifeReady = knifeLeft <= 0;
+    var pillsLeft = CFG.pills - (a.pillsUsed || 0);
+
+    var html = '<div class="mpanel"><div class="mhdr">☠ You are the Murderer</div>';
+    if (murderMode && actionable) {
+      var verb = murderMode === 'knife' ? 'knife' : 'poison';
+      var list = '';
+      for (var i = 0; i < roster.length; i++) {
+        if (i === me.index || effDead(i)) continue;
+        if (murderMode === 'pill' && pos.some(function (p) { return p.target === i; })) continue;
+        list += '<div class="mtarget" data-t="' + i + '">' + esc(roster[i].name) + '</div>';
+      }
+      html += '<div class="msub">Choose who to ' + verb + '</div><div class="mtargets">' + (list || '<div class="mnote">No living targets</div>') + '</div>' +
+        '<button class="mcancel" id="mCancel">Cancel</button>';
     } else {
-      el.innerHTML = '<button class="lifebtn kill" id="killMe">☠&nbsp; I’ve Been Killed</button>';
-      document.getElementById('killMe').addEventListener('click', function () {
-        if (confirm('Mark yourself as killed? The Game Master and the main car will see you’re out of the game.')) setSelfDead(true);
+      html += '<div class="mrow">' +
+        '<button class="mbtn' + (actionable && knifeReady ? '' : ' dis') + '" id="mKnife">🔪 Knife<span class="mst">' + (knifeReady ? 'Ready' : fmt(knifeLeft)) + '</span></button>' +
+        '<button class="mbtn' + (actionable && pillsLeft > 0 ? '' : ' dis') + '" id="mPill">💊 Pill<span class="mst">' + pillsLeft + ' left</span></button>' +
+        '</div>';
+      if (!actionable) html += '<div class="mnote">Strike only during open play</div>';
+    }
+    if (pos.length) {
+      html += '<div class="mpzhdr">Poison timers</div>';
+      pos.forEach(function (p) {
+        var nm = roster[p.target] ? roster[p.target].name : '#' + p.target;
+        html += '<div class="mpz"><span>☠ ' + esc(nm) + '</span><span class="mono">' + fmt(Math.ceil((p.dieAt - t) / 1000)) + '</span></div>';
       });
+    }
+    html += '</div>';
+    el.innerHTML = html;
+
+    if (murderMode && actionable) {
+      Array.prototype.forEach.call(el.querySelectorAll('.mtarget'), function (td) {
+        td.addEventListener('click', function () {
+          var target = parseInt(td.dataset.t, 10);
+          if (murderMode === 'knife') knife(target); else poison(target);
+          murderMode = null; render();
+        });
+      });
+      var c = document.getElementById('mCancel'); if (c) c.addEventListener('click', function () { murderMode = null; render(); });
+    } else {
+      var kb = document.getElementById('mKnife'), pb = document.getElementById('mPill');
+      if (kb && actionable && knifeReady) kb.addEventListener('click', function () { murderMode = 'knife'; render(); });
+      if (pb && actionable && pillsLeft > 0) pb.addEventListener('click', function () { murderMode = 'pill'; render(); });
     }
   }
 

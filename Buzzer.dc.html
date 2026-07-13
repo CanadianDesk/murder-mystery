@@ -89,6 +89,7 @@
 const MKEY = 'nighttrain_meeting_v1';   // the trigger (calledAt/source/reporter)
 const PKEY = 'nighttrain_phase_v1';     // open vs voting
 const CDKEY = 'nighttrain_cooldown_v1'; // { armedAt } — GM-set when a vote ends
+const BELLKEY = 'nighttrain_bell_v1';   // GM sound-only bell (plays sound, no vote)
 
 class Component extends DCLogic {
   // status: 'ready' (live), 'cooldown' (re-arming), 'session' (a vote is on), 'ringing'
@@ -105,6 +106,7 @@ class Component extends DCLogic {
       if (g.buzzer) {
         if (typeof g.buzzer.soundSeconds === 'number') this._segMs = Math.round(g.buzzer.soundSeconds * 1000);
         if (typeof g.buzzer.soundRepeats === 'number') this._segCount = g.buzzer.soundRepeats;
+        if (typeof g.buzzer.volume === 'number' && this._gain) this._gain.gain.value = g.buzzer.volume;
       }
     }).catch(() => {});
 
@@ -114,9 +116,20 @@ class Component extends DCLogic {
     this.audio.preload = 'auto';
     this._segMs = 3500;   // ms of the clip played per repeat
     this._segCount = 3;   // number of repeats
+    // Web Audio lets us push the volume past the element's 1.0 cap (default 1.75×,
+    // i.e. 75% louder). Falls back to plain (max-volume) playback if unavailable.
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this._actx = new AC();
+      this._src = this._actx.createMediaElementSource(this.audio);
+      this._gain = this._actx.createGain();
+      this._gain.gain.value = 1.75;
+      this._src.connect(this._gain).connect(this._actx.destination);
+    } catch (e) { this._actx = null; }
     // iOS/Safari block audio until a user gesture. Prime it on the first tap so a
     // REMOTE body report can ring the iPad without anyone touching it first.
     this._unlock = () => {
+      try { if (this._actx && this._actx.state === 'suspended') this._actx.resume(); } catch (e) {}
       try { const p = this.audio.play(); if (p && p.then) p.then(() => { this.audio.pause(); this.audio.currentTime = 0; }).catch(() => {}); } catch (e) {}
       this.setState({ audioReady: true });
       document.removeEventListener('pointerdown', this._unlock, true);
@@ -159,6 +172,14 @@ class Component extends DCLogic {
         this._meetSig = sig;
         if (m && (m.source === 'buzzer' || m.source === 'body')) this.playSound();
       }
+    } catch (e) {}
+
+    // Ring on a GM sound-only bell (plays the sound and nothing else).
+    try {
+      const b = JSON.parse(localStorage.getItem(BELLKEY) || 'null');
+      const bsig = b ? String(b.at) : '';
+      if (this._bellSig === undefined) this._bellSig = bsig; // baseline; don't ring on load
+      else if (bsig !== this._bellSig) { this._bellSig = bsig; if (b) this.playSound(); }
     } catch (e) {}
 
     // A meeting in progress silences the cord; otherwise the GM's cooldown
