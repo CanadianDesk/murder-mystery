@@ -7,7 +7,7 @@
     "title": "Porter's Call",
     "soundSeconds": 3.5,
     "soundRepeats": 3,
-    "volume": 1.75
+    "volume": 1
   },
   "meeting": {
     "cooldownSeconds": 90

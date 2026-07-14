@@ -106,31 +106,25 @@ class Component extends DCLogic {
       if (g.buzzer) {
         if (typeof g.buzzer.soundSeconds === 'number') this._segMs = Math.round(g.buzzer.soundSeconds * 1000);
         if (typeof g.buzzer.soundRepeats === 'number') this._segCount = g.buzzer.soundRepeats;
-        if (typeof g.buzzer.volume === 'number' && this._gain) this._gain.gain.value = g.buzzer.volume;
+        // volume is a plain 0–1 element attenuator; the +75% loudness is baked into buzzer.mp3.
+        if (typeof g.buzzer.volume === 'number' && this.audio) this.audio.volume = Math.max(0, Math.min(1, g.buzzer.volume));
       }
     }).catch(() => {});
 
     // The bell: play the first few seconds of buzzer.mp3, a few times in a row,
     // whenever a meeting is called by a buzzer press or body report (not manual).
+    // Plain <audio> playback (reliable). The extra loudness is baked into the file
+    // itself — routing through Web Audio's createMediaElementSource could go silent.
     this.audio = new Audio('buzzer.mp3');
     this.audio.preload = 'auto';
     this._segMs = 3500;   // ms of the clip played per repeat
     this._segCount = 3;   // number of repeats
-    // Web Audio lets us push the volume past the element's 1.0 cap (default 1.75×,
-    // i.e. 75% louder). Falls back to plain (max-volume) playback if unavailable.
-    try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      this._actx = new AC();
-      this._src = this._actx.createMediaElementSource(this.audio);
-      this._gain = this._actx.createGain();
-      this._gain.gain.value = 1.75;
-      this._src.connect(this._gain).connect(this._actx.destination);
-    } catch (e) { this._actx = null; }
     // iOS/Safari block audio until a user gesture. Prime it on the first tap so a
     // REMOTE body report can ring the iPad without anyone touching it first.
     this._unlock = () => {
-      try { if (this._actx && this._actx.state === 'suspended') this._actx.resume(); } catch (e) {}
-      try { const p = this.audio.play(); if (p && p.then) p.then(() => { this.audio.pause(); this.audio.currentTime = 0; }).catch(() => {}); } catch (e) {}
+      // Prime playback within the gesture, then pause — but ONLY if a real ring
+      // hasn't started in the meantime (else the deferred pause would kill it).
+      try { const p = this.audio.play(); if (p && p.then) p.then(() => { if (!this._playing) { this.audio.pause(); this.audio.currentTime = 0; } }).catch(() => {}); } catch (e) {}
       this.setState({ audioReady: true });
       document.removeEventListener('pointerdown', this._unlock, true);
       document.removeEventListener('touchstart', this._unlock, true);
@@ -151,12 +145,13 @@ class Component extends DCLogic {
   // each repeat short with a timer (so we never wait for the full clip to end).
   playSound() {
     if (!this.audio) return;
+    this._playing = true;   // so the unlock priming never pauses a live ring
     this._segsLeft = this._segCount;
     this.playSeg();
   }
   playSeg() {
     clearTimeout(this._segTimer);
-    if (this._segsLeft <= 0) { try { this.audio.pause(); this.audio.currentTime = 0; } catch (e) {} return; }
+    if (this._segsLeft <= 0) { this._playing = false; try { this.audio.pause(); this.audio.currentTime = 0; } catch (e) {} return; }
     this._segsLeft--;
     try { this.audio.currentTime = 0; const p = this.audio.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
     this._segTimer = setTimeout(() => this.playSeg(), this._segMs);
