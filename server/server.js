@@ -234,16 +234,17 @@ function allLivingVoted(st) {
 }
 function accusedOf(st) {
   const N = characters.length, dead = deadSetOf(st), round = (st.vote && st.vote.round) || 0;
-  const counts = new Array(N).fill(0); let skip = 0;
+  const living = N - dead.size;
+  const counts = new Array(N).fill(0);
   for (let i = 0; i < N; i++) {
     if (dead.has(i)) continue;
     const s = st.seats[i]; if (!s || !s.vote || s.vote.round !== round) continue;
-    if (s.vote.target === -1) skip++;
-    else if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
+    if (s.vote.target >= 0 && s.vote.target < N) counts[s.vote.target]++;
   }
   let lead = -1, best = 0, ties = 0;
   counts.forEach((c, i) => { if (c > best) { best = c; lead = i; ties = 1; } else if (c === best && c > 0) ties++; });
-  return (best <= 0 || ties > 1 || skip >= best) ? -1 : lead;
+  // Thrown off ONLY with a 2/3 majority of the living passengers; otherwise nobody.
+  return (ties > 1 || best * 3 < living * 2) ? -1 : lead;
 }
 
 // Enter voting: pause the main timer, open a fresh paused ballot (GM starts it).

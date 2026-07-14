@@ -500,16 +500,18 @@
     var t = tally();
     var lead = -1, best = 0, ties = 0;
     t.counts.forEach(function (c, i) { if (c > best) { best = c; lead = i; ties = 1; } else if (c === best && c > 0) ties++; });
-    var max = Math.max(1, t.skip, best);
+    var needed = Math.ceil(2 * t.living.length / 3);           // 2/3 of the living
+    var willEject = ties === 1 && best >= needed;
+    var max = Math.max(1, t.skip, best, needed);
     var rows = '', any = false;
     t.counts.forEach(function (c, i) {
       if (c <= 0) return; any = true;
-      var isLead = (i === lead && ties === 1 && t.skip < best);
+      var isLead = (i === lead && willEject);
       rows += '<div class="trow' + (isLead ? ' lead' : '') + '"><span class="tnm">' + esc(roster[i] ? roster[i].name : '') +
         '</span><span class="tbar"><i style="width:' + (c / max * 100).toFixed(0) + '%"></i></span><span class="tct">' + c + '</span></div>';
     });
     if (t.skip > 0) { any = true; rows += '<div class="trow"><span class="tnm" style="color:#a8895a">Abstain</span><span class="tbar"><i style="width:' + (t.skip / max * 100).toFixed(0) + '%;background:#8a6c44"></i></span><span class="tct">' + t.skip + '</span></div>'; }
-    var sum = t.voted.length + ' of ' + t.living.length + ' living have voted';
+    var sum = t.voted.length + ' of ' + t.living.length + ' voted · ' + needed + ' to eject (⅔)';
     el.innerHTML = '<div class="sum">' + sum + '</div>' + (any ? rows : '<div class="empty">Awaiting the first ballot…</div>');
   }
 

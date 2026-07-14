@@ -288,10 +288,11 @@
 
   // ---- tally (mirrors the main display) -------------------------------------
   function tally() {
-    var round = voteRound(), N = roster.length;
+    var round = voteRound(), N = roster.length, living = 0;
     var counts = new Array(N).fill(0), skip = 0;
     for (var i = 0; i < N; i++) {
       if (effDead(i)) continue;
+      living++;
       var s = read(SEATS + i + '_v1');
       if (!s || !s.vote || s.vote.round !== round) continue;
       if (s.vote.target === -1) skip++;
@@ -299,7 +300,8 @@
     }
     var top = -1, best = 0, ties = 0;
     counts.forEach(function (c, i) { if (c > best) { best = c; top = i; ties = 1; } else if (c === best && c > 0) ties++; });
-    var survive = best <= 0 || ties > 1 || skip >= best;
+    // Thrown off only with a 2/3 majority of the living; otherwise everyone survives.
+    var survive = ties > 1 || best * 3 < living * 2;
     return { counts: counts, skip: skip, accused: survive ? -1 : top, survive: survive };
   }
 

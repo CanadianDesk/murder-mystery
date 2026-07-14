@@ -367,8 +367,8 @@ class Component extends DCLogic {
       else if (v === best && v > 0) { bestCount++; }
     });
     const maxAll = Math.max(1, skip, ...votes);
-    // tie among players, no votes at all, or skip meets/beats the top → nobody eliminated
-    const survive = best <= 0 || bestCount > 1 || skip >= best;
+    // Thrown off ONLY with a 2/3 majority of the living passengers; otherwise nobody.
+    const survive = bestCount > 1 || best * 3 < aliveCount * 2;
     const accusedName = (!survive && accusedIdx >= 0) ? ROSTER[accusedIdx][0] : '';
     // scale the display size down for longer names so they never spill the frame
     const nameLen = accusedName.length;
